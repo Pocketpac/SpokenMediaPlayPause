@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""Pause Firefox during Spoken narration on a Wayland desktop.
+"""Pause desktop media during Spoken narration.
 
 X11 and XWayland games supply only a small rectangle from the WoW window.
 For native Wayland the ScreenCast portal supplies the selected stream, with a
 low frame-rate request at the PipeWire source. Both use the same marker decoder
-and send Pause and Play directly to Firefox over D-Bus.
+and send Pause and Play directly to MPRIS players over D-Bus.
 """
 
 import argparse
 from contextlib import suppress
 import os
-import re
 import signal
 import sys
 from time import monotonic
@@ -21,6 +20,8 @@ import gi
 for namespace in ("Gst", "GstApp", "GstVideo"):
     gi.require_version(namespace, "1.0")
 from gi.repository import Gio, GLib, Gst, GstVideo
+
+from media_players import DBUS, DBUS_PATH, PROPERTIES, MediaPlayers
 
 try:
     from Xlib import X, Xatom, display, error as xerror
@@ -33,12 +34,6 @@ PORTAL_PATH = "/org/freedesktop/portal/desktop"
 SCREENCAST = "org.freedesktop.portal.ScreenCast"
 REQUEST = "org.freedesktop.portal.Request"
 SESSION = "org.freedesktop.portal.Session"
-DBUS = "org.freedesktop.DBus"
-DBUS_PATH = "/org/freedesktop/DBus"
-MPRIS_PREFIX = "org.mpris.MediaPlayer2."
-MPRIS_PATH = "/org/mpris/MediaPlayer2"
-MPRIS_PLAYER = MPRIS_PREFIX + "Player"
-PROPERTIES = "org.freedesktop.DBus.Properties"
 NO_FLAGS = Gio.DBusCallFlags.NONE
 
 
@@ -166,86 +161,6 @@ class ScreenCast:
         )
         (index,) = reply.unpack()
         return fd_list.get(index), node, properties.get("pipewire-serial")
-
-
-class Firefox:
-    """Own at most one pause for the selected Firefox MPRIS session.
-
-    Control uses the unique bus owner to prevent resuming a restarted browser.
-    Track metadata guards against a tab or item changing during narration.
-    A browser already paused at the start never belongs to this helper.
-    """
-
-    def __init__(self, bus):
-        self.bus = bus
-        self.paused = None
-
-    def properties(self, owner):
-        """Fetch the current media state and metadata together for one owner."""
-        (properties,) = call(self.bus, owner, MPRIS_PATH, PROPERTIES, "GetAll",
-                             GLib.Variant("(s)", (MPRIS_PLAYER,)))
-        return properties
-
-    @staticmethod
-    def track(properties):
-        """Use identity fields Firefox exposes, excluding art, position, and duration."""
-        data = properties.get("Metadata", {})
-        return tuple(data.get(key) for key in (
-            "mpris:trackid", "xesam:url", "xesam:title", "xesam:artist", "xesam:album"
-        ))
-
-    def sessions(self):
-        """Find Firefox sessions and use their unique owners for control."""
-        (names,) = call(self.bus, DBUS, DBUS_PATH, DBUS, "ListNames")
-        for name in sorted(names):
-            if not re.fullmatch(re.escape(MPRIS_PREFIX) + r"firefox(?:\..+)?", name):
-                continue
-            try:
-                (owner,) = call(self.bus, DBUS, DBUS_PATH, DBUS, "GetNameOwner",
-                                GLib.Variant("(s)", (name,)))
-                properties = self.properties(owner)
-            except GLib.Error:
-                continue  # A Firefox session can vanish between discovery and querying.
-            yield owner, properties
-
-    def test_command(self, method):
-        """Send a manual test without creating or changing an automatic pause."""
-        expected = "Playing" if method == "Pause" else "Paused"
-        for owner, properties in self.sessions():
-            if properties.get("PlaybackStatus") == expected and properties.get("Can" + method, True):
-                call(self.bus, owner, MPRIS_PATH, MPRIS_PLAYER, method)
-                return f"Sent {method} to Firefox."
-        return f"No {expected.lower()} Firefox media found."
-
-    def pause(self):
-        """Pause a playing Firefox session once and remember what to resume."""
-        for owner, properties in self.sessions():
-            try:
-                if properties.get("PlaybackStatus") == "Playing" and properties.get("CanPause", True):
-                    self.paused = owner, self.track(properties)
-                    call(self.bus, owner, MPRIS_PATH, MPRIS_PLAYER, "Pause")
-                    print("Paused Firefox.", flush=True)
-                    return
-            except GLib.Error as error:
-                # Keep the record if the command timed out. Firefox might have
-                # received it before the reply was lost.
-                print(f"Firefox pause request failed: {error.message}", file=sys.stderr)
-                if self.paused:
-                    return
-
-    def resume(self):
-        """Resume only the recorded Firefox owner if its same media is still paused."""
-        if not self.paused:
-            return
-        owner, track = self.paused
-        self.paused = None
-        try:
-            properties = self.properties(owner)
-            if properties.get("PlaybackStatus") == "Paused" and self.track(properties) == track:
-                call(self.bus, owner, MPRIS_PATH, MPRIS_PLAYER, "Play")
-                print("Resumed Firefox.", flush=True)
-        except GLib.Error as error:
-            print(f"Could not resume Firefox: {error.message}", file=sys.stderr)
 
 
 # Six cells shared with SpokenMediaPause.lua. RGB bit codes are ordered red,
@@ -544,10 +459,7 @@ class Narration:
         holding = live and now - self.last_active < 0.9 and not idle_too_long
         if holding != self.holding:
             self.holding = holding
-            if holding:
-                self.player.pause()
-            else:
-                self.player.resume()
+            self.player.set_active(holding)
 
         if self.show_status:
             if not live:
@@ -555,7 +467,7 @@ class Narration:
             elif self.disabled:
                 status = "Auto-pause off"
             elif holding:
-                status = "Firefox paused" if self.player.paused else "Spoken is narrating"
+                status = "Media paused" if self.player.owns_pause else "Spoken is narrating"
             else:
                 status = "Ready"
             self.show_status(status, self.holding)
@@ -645,6 +557,8 @@ class StatusWindow:
         self.window.set_child(content)
         self.on_close = None
         self.on_test = None
+        self.testing = False
+        self.holding = False
         self.on_share = None
         self.window.connect("close-request", self.close_request)
         self.show("Starting…")
@@ -654,18 +568,27 @@ class StatusWindow:
         """Show capture state and reserve playback for automation while narrating."""
         if self.label.get_label() != status:
             self.label.set_label(status)
-        enabled = self.on_test is not None and not holding
+        self.holding = holding
+        self.update_test_buttons()
+
+    def update_test_buttons(self):
+        enabled = self.on_test is not None and not self.holding and not self.testing
         for button in self.test_buttons:
             if button.get_sensitive() != enabled:
                 button.set_sensitive(enabled)
 
     def run_test(self, _button, method):
-        try:
-            message = self.on_test(method)
-        except GLib.Error as error:
-            message = f"Firefox {method} failed: {error.message}"
-        self.feedback.set_label(message)
+        self.testing = True
+        self.update_test_buttons()
+        self.feedback.set_label(f"Sending {method}…")
         self.feedback.set_visible(True)
+
+        def show_result(message):
+            self.testing = False
+            self.feedback.set_label(message)
+            self.update_test_buttons()
+
+        self.on_test(method, show_result)
 
     def share_clicked(self, _button):
         if self.on_share is not None:
@@ -711,14 +634,14 @@ def main():
 def run_capture(args, status):
     """Own one capture session and release media on normal or error exit."""
     bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-    # Prevent two helpers from independently claiming Firefox's pause.
+    # Keep two helpers from claiming the same media.
     (name_status,) = call(bus, DBUS, DBUS_PATH, DBUS, "RequestName",
                           GLib.Variant("(su)", ("io.github.SpokenMediaPause", 4)))
     if name_status != 1:
         raise RuntimeError("Spoken Media Pause is already running.")
 
     portal = ScreenCast(bus)
-    player = Firefox(bus)
+    player = MediaPlayers(bus)
     monitor = Narration(player, status.show if status is not None else None)
     loop = GLib.MainLoop()
     errors = []
@@ -851,7 +774,7 @@ def run_capture(args, status):
         for source in (poll, interrupt, terminate, error_exit_timer):
             if source is not None:
                 GLib.source_remove(source)
-        player.resume()
+        player.close()
         if x11 is not None:
             x11.close()
         if pipeline is not None:
