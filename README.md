@@ -16,7 +16,7 @@ Install the **companion addon** for your WoW client and run the **desktop helper
 1. Install Spoken or the matching port and a voice pack for your client.
 2. Download the matching companion ZIP below. The same ZIP works with both desktop helpers.
 3. With WoW closed, extract the ZIP into that client's `Interface/AddOns` folder. The resulting path should be `Interface/AddOns/SpokenMediaPause/SpokenMediaPause.lua`.
-4. At the character selection screen, open **AddOns** and enable Spoken (or SoftSpoken) and **Spoken Media Pause**. After logging in, look for the small colored marker in the top-left corner.
+4. At the character selection screen, open **AddOns** and enable Spoken (or SoftSpoken) and **Spoken Media Pause**. After logging in, look for the [colored marker](#in-game-marker) in the top-left corner.
 
 | WoW client | Companion download |
 | --- | --- |
@@ -64,11 +64,23 @@ If your Wayland picker offers only monitor sharing, close the helper and relaunc
 
 Linux playback works with players that expose Pause, Play, and track or item information through MPRIS. The helper uses D-Bus directly and needs neither `playerctl` nor a browser extension.
 
+## In-game marker
+
+![Six colored squares in the top-left corner of WoW. The red top-right square shows that auto-pause is on and Spoken is idle.](assets/in-game-marker.png)
+
+Look for two rows of three colored squares just inside the top-left corner of WoW. Click anywhere in the box to turn automatic pause off or back on. The **top-right square** shows the current state.
+
+- **Red** means auto-pause is on and Spoken is idle, as shown above.
+- **Green** means Spoken is narrating and the desktop helper should pause compatible media.
+- **White** means auto-pause is off.
+
+The bottom-right square blinks so the helper can detect when the game image stops updating. When narration ends, you turn auto-pause off, or you close WoW, the helper releases any automatic pauses it still owns.
+
 ## Test playback and automatic pause
 
 1. **Check your player.** Start a song, video, or audiobook in your player. Click **Test Pause**, then **Test Play** in the helper. Both buttons work with WoW closed. **Test Play** resumes the same item paused by **Test Pause**.
 2. **Check Spoken.** With your media playing and the helper running, trigger a voiced quest or NPC dialogue in WoW. Your media should pause while Spoken speaks and resume when narration ends.
-3. **Use the in-game toggle.** Click the colored marker to turn auto-pause off or back on. Its top-right square is red when idle, green when narrating, and white when auto-pause is off. Turning auto-pause off or closing WoW releases the automatic pauses the helper still owns.
+3. **Check the toggle.** Click the [in-game marker](#in-game-marker) and check that its top-right square turns white. Click it again to turn auto-pause back on.
 
 If the test buttons have no effect, confirm your media is playing in a player that exposes your operating system's media controls. Try a regular track or video if a live stream fails. If the buttons work but automatic pause fails, check that both addons are enabled, Spoken is playing audible narration, and the marker is visible and enabled. On native Wayland, also check which window or monitor you shared.
 
