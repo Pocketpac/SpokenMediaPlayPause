@@ -1,4 +1,6 @@
 #!/bin/bash
+# Build and audit the All Players AppImage for Ubuntu 22.04. The optional
+# argument chooses the output directory for the audited executable.
 set -euo pipefail
 
 repo=$(cd -- "$(dirname -- "$0")/.." && pwd)
