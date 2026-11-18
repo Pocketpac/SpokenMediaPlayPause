@@ -5,7 +5,7 @@
 ## Use the beta
 
 1. Download `Spoken-Media-Pause-Windows-x64-Beta.exe` from the [Windows beta release](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/tag/v0.2.0-beta.1).
-2. Keep Spoken and the [Spoken Media Pause 0.3.0 companion addon](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/v0.1.0/SpokenMediaPause-0.3.0.zip) installed in WoW Forever. If you already have the companion addon, use that copy.
+2. Install Spoken and the [Spoken Media Pause companion addon for your WoW client](../README.md#install-the-addon).
 3. Run the executable. Start media and use **Test Pause**, then **Test Play**, to check playback. The buttons work with WoW closed.
 4. Use WoW in windowed or borderless mode and keep its upper-left corner on-screen and visible. Click the colored in-game marker to toggle automatic pause.
 

@@ -16,19 +16,19 @@ The build uses Jammy's Python, GTK, and system packages and builds GStreamer and
 
 ## Release files
 
-Publish the All Players AppImage, the companion addon ZIP, and their SHA-256 checksums. Run these commands from the repository root after building the AppImage. Use the version from the addon's `.toc` in the ZIP filename.
+Publish the All Players AppImage, the companion addon ZIPs, and their SHA-256 checksums. The addon packager reads the version from the current WoW TOCs and generates both legacy manifests from the same source.
 
 ```sh
-(
-  cd addon
-  python3 -m zipfile -c ../dist/SpokenMediaPause-0.3.0.zip SpokenMediaPause
-)
+python3 packaging/package-addon.py dist
+lua5.1 tests/addon/marker.lua
 (
   cd dist
   sha256sum Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage \
-    SpokenMediaPause-0.3.0.zip > SHA256SUMS
+    SpokenMediaPause-0.4.0*.zip > SHA256SUMS
 )
 ```
+
+For an addon-only release, checksum the ZIPs alone. Use the current TOC version in the filename pattern.
 
 ## Bundled dependencies
 
