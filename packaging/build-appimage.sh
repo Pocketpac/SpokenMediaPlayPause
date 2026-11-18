@@ -9,11 +9,7 @@ fi
 destination=${1:-"$repo/dist"}
 mkdir -p -- "$destination"
 destination=$(realpath "$destination")
-if [[ -f "$repo/desktop/media_players.py" ]]; then
-    artifact=Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage
-else
-    artifact=Spoken-Media-Pause-Ubuntu-22.04-x86_64.AppImage
-fi
+artifact=Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage
 if [[ -e "$destination/$artifact" ]]; then
     printf 'File already exists at %s\n' "$destination/$artifact" >&2
     exit 1

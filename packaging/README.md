@@ -14,6 +14,22 @@ On an x86-64 Jammy system with the Dockerfile's dependencies installed, run `bas
 
 The build uses Jammy's Python, GTK, and system packages and builds GStreamer and PipeWire from the pinned upstream sources in [sources.tsv](sources.tsv). It packages the needed libraries and audits the glibc symbol requirements of every bundled ELF file. The output uses the host glibc. System package updates can change the bytes of a rebuilt AppImage.
 
+## Release files
+
+Publish the All Players AppImage, the companion addon ZIP, and their SHA-256 checksums. Run these commands from the repository root after building the AppImage. Use the version from the addon's `.toc` in the ZIP filename.
+
+```sh
+(
+  cd addon
+  python3 -m zipfile -c ../dist/SpokenMediaPause-0.3.0.zip SpokenMediaPause
+)
+(
+  cd dist
+  sha256sum Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage \
+    SpokenMediaPause-0.3.0.zip > SHA256SUMS
+)
+```
+
 ## Bundled dependencies
 
 The source package names and versions for the published Ubuntu binaries are listed in [ubuntu-22.04-components.tsv](ubuntu-22.04-components.tsv). Each source package is available in [Launchpad's Ubuntu source archive](https://launchpad.net/ubuntu/+source) at its listed version. For example, the [GTK 4 source package](https://launchpad.net/ubuntu/+source/gtk4/4.6.9%2Bds-0ubuntu0.22.04.2) corresponds to the published GTK binaries. The AppImage includes package notices and a build manifest under `usr/share/licenses`.
