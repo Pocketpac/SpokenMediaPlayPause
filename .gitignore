@@ -2,3 +2,7 @@
 __pycache__/
 *.pyc
 *.AppImage
+/windows/bin/
+/windows/obj/
+/tests/windows/bin/
+/tests/windows/obj/

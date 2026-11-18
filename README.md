@@ -2,6 +2,11 @@
 
 Spoken Media Pause pauses Linux desktop media while the [Spoken addon](https://www.curseforge.com/wow/addons/spoken) narrates in World of Warcraft Forever. It sends separate Pause and Play commands over D-Bus to players that expose MPRIS controls. It resumes an item only if the helper paused it and the same session still has that item selected and paused.
 
+## Downloads
+
+- [Linux AppImage and companion addon](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest)
+- [Windows x64 beta](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/tag/v0.2.0-beta.1) and [Windows instructions](windows/README.md). The executable was built on Linux. Live Windows gameplay and media control are untested.
+
 ## Install
 
 1. Download the all-player AppImage and the addon ZIP from [Releases](https://github.com/Pocketpac/SpokenMediaPlayPause/releases). The AppImage targets 64-bit Linux with glibc 2.35 or newer, including Ubuntu 22.04.
