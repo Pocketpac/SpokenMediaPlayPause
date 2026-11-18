@@ -8,8 +8,10 @@ Install the **companion addon** for your WoW client and run the **desktop helper
 
 | Platform | Download | Requirements |
 | --- | --- | --- |
-| Windows | [Standalone x64 EXE](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/v0.2.0-beta.2/Spoken-Media-Pause-Windows-x64-Beta.exe) · [Windows setup](#windows-setup) | Windows 11 target. **Beta, untested on Windows.** Windows 10 compatibility is unverified. |
-| Linux | [All Players AppImage](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/v0.1.1/Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage) · [Linux setup](#linux-setup) | x86-64 with glibc 2.35 or newer, including Ubuntu 22.04 |
+| Windows | [Standalone x64 EXE](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/v0.2.0-beta.3/Spoken-Media-Pause-Windows-x64-Beta.exe) · [Windows setup](#windows-setup) | Windows 11 target. **Beta, untested on Windows.** Windows 10 compatibility is unverified. |
+| Linux | [All Players AppImage](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/v0.1.2/Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage) · [Linux setup](#linux-setup) | x86-64 with glibc 2.35 or newer, including Ubuntu 22.04 |
+
+On both platforms, use WoW in **Windowed** or **Windowed (Fullscreen)** mode. Exclusive fullscreen may make the in-game marker unreadable.
 
 ## Install the addon
 
@@ -30,7 +32,7 @@ Install the **companion addon** for your WoW client and run the **desktop helper
 2. Start WoW in **Windowed** or **Windowed (Fullscreen)** mode. Keep the top-left corner of the game visible, with the helper window out of the way. The helper finds WoW and reads up to 200 × 160 pixels from that corner.
 3. [Test playback and automatic pause](#test-playback-and-automatic-pause).
 
-Windows playback uses Windows system media sessions. The player must expose Pause, Play, and item information through that interface. [Windows beta release](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/tag/v0.2.0-beta.2)
+Windows playback uses Windows system media sessions. The player must expose Pause, Play, and item information through that interface. [Windows beta release](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/tag/v0.2.0-beta.3)
 
 ## Linux setup
 
@@ -74,7 +76,7 @@ Look for two rows of three colored squares just inside the top-left corner of Wo
 - **Green** means Spoken is narrating and the desktop helper should pause compatible media.
 - **White** means auto-pause is off.
 
-The bottom-right square blinks so the helper can detect when the game image stops updating. When narration ends, you turn auto-pause off, or you close WoW, the helper releases any automatic pauses it still owns.
+The bottom-right square blinks so the helper can detect when the game image stops updating. If the marker disappears or freezes during a resolution or display mode change, the helper keeps its last pause decision until it can read a live marker again. When narration ends, you turn auto-pause off, or the helper detects that WoW or the capture session has closed, it releases any automatic pauses it still owns. If the marker stays unreadable, close the helper to release its pause.
 
 ## Test playback and automatic pause
 

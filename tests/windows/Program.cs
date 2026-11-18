@@ -71,9 +71,20 @@ static class Checks
         Check(narration.Disabled && !narration.Active, "Disabling must release immediately.");
         narration.Update(active with { Heartbeat = true }, 1200);
         narration.Update(null, 2100);
-        Check(!narration.Active, "Missing capture must release after 900 ms.");
+        Check(narration.Active, "Missing capture must hold the existing pause.");
         narration.Update(active with { Heartbeat = true }, 3601);
-        Check(!narration.Connected && !narration.Active, "A frozen heartbeat must expire.");
+        Check(!narration.Connected && narration.Active, "A frozen heartbeat must expire without releasing media.");
+        narration.Update(idle, 4000);
+        narration.Update(null, 4600);
+        Check(narration.Active, "One idle sample followed by another gap must not release.");
+        narration.Update(idle with { Heartbeat = true }, 5000);
+        narration.Update(idle with { Heartbeat = false }, 5450);
+        Check(narration.Connected && !narration.Active, "A live idle marker must release after recovery.");
+        narration.Update(null, 9000);
+        Check(!narration.Active, "A gap while idle must not start a pause.");
+        narration.Update(active with { Heartbeat = true }, 9100);
+        narration.Reset();
+        Check(!narration.Connected && !narration.Active, "Game exit must clear the held pause.");
     }
 
     static async Task CheckMultiplePlayersAsync()

@@ -10,6 +10,7 @@ and send Pause and Play directly to MPRIS players over D-Bus.
 import argparse
 from contextlib import suppress
 import os
+import select
 import signal
 import sys
 from time import monotonic
@@ -240,21 +241,67 @@ class Frame:
         return None, None
 
 
+WOW_EXECUTABLES = frozenset(("wow.exe", "wowforever.exe", "wowb.exe", "wowt.exe",
+                             "wowclassic.exe", "wowclassicb.exe", "wow-64.exe"))
+
+
+class GameProcesses:
+    """Use kernel process handles to distinguish game exit from missing pixels."""
+
+    def __init__(self):
+        self.fds = []
+        self.poller = select.poll()
+
+    def watch(self, pid):
+        """Track one process identity across window replacement and PID reuse."""
+        try:
+            fd = os.pidfd_open(pid)
+        except (AttributeError, OSError):
+            return False
+        self.fds.append(fd)
+        self.poller.register(fd, select.POLLIN)
+        return True
+
+    def watch_display_games(self):
+        """Identify game processes once, since a monitor stream has no window PID."""
+        with suppress(OSError), os.scandir("/proc") as entries:
+            for entry in entries:
+                if entry.name.isdecimal():
+                    # Processes can exit between enumeration and the comm read.
+                    with suppress(OSError):
+                        with open(f"{entry.path}/comm", encoding="utf-8", errors="replace") as name:
+                            if name.read().strip().casefold() in WOW_EXECUTABLES:
+                                self.watch(int(entry.name))
+
+    def all_exited(self):
+        """Return true only when every tracked process has exited."""
+        return bool(self.fds) and len(self.poller.poll(0)) == len(self.fds)
+
+    def close(self):
+        """Release the process handles when capture ends."""
+        for fd in self.fds:
+            os.close(fd)
+        self.fds.clear()
+
+
 class X11Capture:
     """Poll only the corner of a viewable WoW window on X11 or XWayland.
 
     Auto-discovery reads the window manager client list and WoW's class/title.
-    Keep the drawable until the game closes. If the window is minimized or
-    resized, refresh its geometry at most once per second.
+    Track the game process when its window advertises a PID so fullscreen
+    changes can replace the drawable without ending capture.
     """
 
     def __init__(self):
+        self.game = GameProcesses()
+        self.pid = None
         self.connection = display.Display()
         try:
             self.root = self.connection.screen().root
             self.clients_atom = self.connection.intern_atom("_NET_CLIENT_LIST")
             self.title_atom = self.connection.intern_atom("_NET_WM_NAME")
             self.utf8_atom = self.connection.intern_atom("UTF8_STRING")
+            self.pid_atom = self.connection.intern_atom("_NET_WM_PID")
             self.window = None
             self.next_search = 0
         except (xerror.XError, xerror.DisplayError):
@@ -262,7 +309,8 @@ class X11Capture:
             raise
 
     def close(self):
-        """Close only this helper's X11 connection."""
+        """Close this helper's X11 connection and process watch."""
+        self.game.close()
         with suppress(xerror.DisplayError, xerror.ConnectionClosedError, OSError):
             self.connection.close()
 
@@ -270,7 +318,7 @@ class X11Capture:
     def is_wow(title, classes):
         """Match a WoW game client without selecting Battle.net or a browser."""
         names = {name.casefold() for name in classes}
-        if names.intersection({"wow.exe", "wowb.exe", "wowt.exe", "wowclassic.exe", "wowclassicb.exe"}):
+        if names.intersection(WOW_EXECUTABLES):
             return True
         title = title.strip().casefold()
         return (title in ("world of warcraft", "world of warcraft forever")
@@ -290,12 +338,18 @@ class X11Capture:
                     title = title.decode("utf-8", "replace")
                 if not self.is_wow(title, window.get_wm_class() or ()):
                     continue
+                owner = window.get_full_property(self.pid_atom, Xatom.CARDINAL)
+                pid = int(owner.value[0]) if owner is not None and len(owner.value) else None
+                if self.pid is not None and pid != self.pid:
+                    continue
                 attributes = window.get_attributes()
                 if attributes.map_state != X.IsViewable:
                     continue
                 geometry = window.get_geometry()
                 self.configure(window, geometry, attributes.visual)
                 if self.read_window() is not None:
+                    if self.pid is None and pid and self.game.watch(pid):
+                        self.pid = pid
                     return True
             except (xerror.XError, ValueError):
                 pass
@@ -330,9 +384,16 @@ class X11Capture:
         if now < self.next_search:
             return None
         try:
+            if self.window is None:
+                if self.game.all_exited():
+                    raise CaptureEnded()
+                self.next_search = now + 1
+                if not self.find_window():
+                    return None
+                self.next_search = 0
             return self.read_window()
         except (xerror.BadDrawable, xerror.BadWindow):
-            raise CaptureEnded() from None
+            return self.window_gone()
         except xerror.BadMatch:
             # The game may still be running. Refresh geometry once per
             # second and keep the window ID so closing it still ends capture.
@@ -341,7 +402,9 @@ class X11Capture:
                 attributes = self.window.get_attributes()
                 if attributes.map_state == X.IsViewable:
                     self.configure(self.window, self.window.get_geometry(), attributes.visual)
-            except (xerror.BadDrawable, xerror.BadWindow, xerror.ConnectionClosedError):
+            except (xerror.BadDrawable, xerror.BadWindow):
+                return self.window_gone()
+            except xerror.ConnectionClosedError:
                 raise CaptureEnded() from None
             except (xerror.XError, ValueError) as error:
                 raise RuntimeError(f"Could not refresh WoW window geometry: {error}") from error
@@ -350,6 +413,12 @@ class X11Capture:
             raise CaptureEnded() from None
         except xerror.XError as error:
             raise RuntimeError(f"X11 capture failed: {error}") from error
+
+    def window_gone(self):
+        """Keep looking for the same process after it replaces its X11 window."""
+        if self.pid is None or self.game.all_exited():
+            raise CaptureEnded() from None
+        self.window = None
 
     def read_window(self):
         """Copy the requested X11 rectangle into a frame for the decoder."""
@@ -404,12 +473,9 @@ def frame_view(sample):
 class Narration:
     """Translate live marker transitions into one pause and one release.
 
-    Sample the newest frame only. Acquire a toggling heartbeat before acting.
-    A 450 ms grace covers adjacent lines and stop fades. Wait up to 900 ms
-    for another active sample when frames are missing, since the compositor
-    may only emit a frame on damage. A frozen heartbeat expires after 2.4 s.
-    An explicit disable clears the active window immediately, so a missing
-    sample after the click cannot reapply the previous pause.
+    A toggling heartbeat confirms the marker is live. Missing or frozen
+    frames preserve the last pause decision. A live idle marker releases
+    after 450 ms to cover adjacent lines, and a live disable releases at once.
     """
 
     def __init__(self, player, show_status=None):
@@ -418,7 +484,6 @@ class Narration:
         self.anchor = None
         self.heartbeat = None
         self.last_heartbeat = float("-inf")
-        self.last_active = float("-inf")
         self.first_idle = None
         self.search_after = 0
         self.holding = False
@@ -426,7 +491,7 @@ class Narration:
         self.disabled = False
 
     def update(self, frame, now):
-        """Process one sample, or advance expiry without an available sample."""
+        """Process a live marker sample and preserve playback during capture gaps."""
         state = None
         if frame is not None:
             if self.anchor is not None:
@@ -441,29 +506,34 @@ class Narration:
             self.heartbeat = state[1]
 
         live = now - self.last_heartbeat <= 2.4
+        holding = self.holding
         if live and state is not None:
             self.disabled = state[0] == WHITE
             if state[0] == WHITE:
-                self.last_active = float("-inf")
+                holding = False
                 self.first_idle = None
             elif state[0] == GREEN:
-                self.last_active = now
+                holding = True
                 self.first_idle = None
-            elif self.first_idle is None:
-                self.first_idle = now
+            elif holding:
+                if self.first_idle is None:
+                    self.first_idle = now
+                holding = now - self.first_idle < 0.45
+        elif frame is not None or not live:
+            # A PipeWire poll can have no new frame. Only an unreadable
+            # image or an expired heartbeat invalidates an idle candidate.
+            self.first_idle = None
         if live != self.connected:
             self.connected = live
             print("Connected to Spoken." if live else "Waiting for Spoken’s marker.", flush=True)
 
-        idle_too_long = self.first_idle is not None and now - self.first_idle >= 0.45
-        holding = live and now - self.last_active < 0.9 and not idle_too_long
         if holding != self.holding:
             self.holding = holding
             self.player.set_active(holding)
 
         if self.show_status:
             if not live:
-                status = "Waiting for WoW’s marker"
+                status = "Waiting for WoW’s marker (pause held)" if holding else "Waiting for WoW’s marker"
             elif self.disabled:
                 status = "Auto-pause off"
             elif holding:
@@ -654,6 +724,8 @@ def run_capture(args, status):
     capture_started = False
     capture_closed = False
     error_exit_timer = None
+    display_games = GameProcesses() if args.display else None
+    display_games_checked = False
 
     def stop():
         portal.cancel()
@@ -690,9 +762,15 @@ def run_capture(args, status):
 
     def poll_frame(read_frame):
         """Advance the shared detector from the selected backend."""
+        nonlocal display_games_checked
         try:
             now = monotonic()
+            if display_games is not None and display_games.all_exited():
+                raise CaptureEnded()
             monitor.update(read_frame(now), now)
+            if display_games is not None and monitor.connected and not display_games_checked:
+                display_games_checked = True
+                display_games.watch_display_games()
         except CaptureEnded:
             capture_ended()
         except (GLib.Error, RuntimeError, OSError) as error:
@@ -777,6 +855,8 @@ def run_capture(args, status):
         player.close()
         if x11 is not None:
             x11.close()
+        if display_games is not None:
+            display_games.close()
         if pipeline is not None:
             pipeline.set_state(Gst.State.NULL)
         if gst_bus is not None:

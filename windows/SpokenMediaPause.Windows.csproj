@@ -12,7 +12,7 @@
     <!-- Use the multiresolution logo in Explorer and embed it for the status window. -->
     <ApplicationIcon>spoken-media-pause.ico</ApplicationIcon>
     <Product>Spoken Media Pause for Windows (Beta)</Product>
-    <Version>0.2.0-beta.2</Version>
+    <Version>0.2.0-beta.3</Version>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>

@@ -48,17 +48,14 @@ internal sealed class MainWindow : Form
     private void Poll()
     {
         long now = clock.ElapsedMilliseconds;
-        nint previous = capture.Window;
+        bool hadGame = capture.HasGame;
         var reading = capture.Sample(now);
-        if (previous != 0 && previous != capture.Window)
-        {
+        if (hadGame && !capture.HasGame)
             narration.Reset();
-            media.SetActive(false);
-        }
         narration.Update(reading, now);
         media.SetActive(narration.Active);
-        status.Text = capture.Window == 0 ? "Waiting for WoW"
-            : !narration.Connected ? "Waiting for Spoken’s marker"
+        status.Text = !capture.HasGame ? "Waiting for WoW"
+            : !narration.Connected ? narration.Active ? "Waiting for Spoken’s marker (pause held)" : "Waiting for Spoken’s marker"
             : narration.Disabled ? "Auto-pause off"
             : !narration.Active ? "Ready"
             : media.OwnsAutomaticPause ? "Media paused" : "Spoken is narrating";

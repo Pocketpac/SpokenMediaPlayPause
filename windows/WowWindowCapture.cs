@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
 using SpokenMediaPause.Core;
 
 namespace SpokenMediaPause.Windows;
@@ -24,33 +25,45 @@ internal sealed class WowWindowCapture : IDisposable
     private readonly MarkerDecoder decoder = new();
     private long searchAfter;
     private uint processId;
-    public nint Window { get; private set; }
+    private nint window;
+    private SafeProcessHandle? game;
+    public bool HasGame => window != 0 || game is not null;
 
     public WowWindowCapture() => graphics = Graphics.FromImage(crop);
 
     /// <summary>Returns a sample only when the tracked client still owns the visible marker.</summary>
     public unsafe MarkerReading? Sample(long now)
     {
-        if (Window != 0 && (!Native.IsWindow(Window) ||
-            Native.GetWindowThreadProcessId(Window, out uint owner) == 0 || owner != processId))
+        if (window != 0 && (!Native.IsWindow(window) ||
+            Native.GetWindowThreadProcessId(window, out uint owner) == 0 || owner != processId))
         {
-            Window = 0;
+            window = 0;
             decoder.Reset();
             searchAfter = now;
+            if (game is null)
+                return null;
         }
-        if (Window == 0 && now >= searchAfter)
+        if (window == 0 && now >= searchAfter)
         {
             searchAfter = now + 1000;
+            // A signaled process has exited. A window can disappear and return
+            // with a new handle while that same game process is still running.
+            if (game is not null && Native.WaitForSingleObject(game, 0) == 0)
+            {
+                game.Dispose();
+                game = null;
+                return null;
+            }
             FindWindow();
         }
-        if (Window == 0 || !Native.IsWindowVisible(Window) || Native.IsIconic(Window) ||
-            !Native.GetClientRect(Window, out var client))
+        if (window == 0 || !Native.IsWindowVisible(window) || Native.IsIconic(window) ||
+            !Native.GetClientRect(window, out var client))
             return null;
 
         int width = Math.Min(client.Right, MarkerDecoder.CaptureWidth);
         int height = Math.Min(client.Bottom, MarkerDecoder.CaptureHeight);
         var origin = new Native.Point();
-        if (width < 12 || height < 12 || !Native.ClientToScreen(Window, ref origin)
+        if (width < 12 || height < 12 || !Native.ClientToScreen(window, ref origin)
             || !SystemInformation.VirtualScreen.Contains(new Rectangle(origin.X, origin.Y, width, height)))
             return null;
 
@@ -78,18 +91,19 @@ internal sealed class WowWindowCapture : IDisposable
 
             var point = new Native.Point { X = origin.X + anchor.X + anchor.Cell,
                 Y = origin.Y + anchor.Y };
-            return Native.GetAncestor(Native.WindowFromPoint(point), 2) == Window ? sample : null; // GA_ROOT
+            return Native.GetAncestor(Native.WindowFromPoint(point), 2) == window ? sample : null; // GA_ROOT
         }
         finally { crop.UnlockBits(locked); }
     }
 
+    /// <summary>Find an initial WoW window or a replacement owned by the tracked game.</summary>
     private void FindWindow()
     {
         var title = new StringBuilder(256);
-        Native.EnumWindows((window, _) =>
+        Native.EnumWindows((candidate, _) =>
         {
-            if (!Native.IsWindowVisible(window) || Native.IsIconic(window) ||
-                Native.GetWindowText(window, title, title.Capacity) == 0)
+            if (!Native.IsWindowVisible(candidate) || Native.IsIconic(candidate) ||
+                Native.GetWindowText(candidate, title, title.Capacity) == 0)
                 return true;
             var name = title.ToString().Trim();
             if (!name.Equals("World of Warcraft", StringComparison.OrdinalIgnoreCase) &&
@@ -97,8 +111,15 @@ internal sealed class WowWindowCapture : IDisposable
                 !name.StartsWith("World of Warcraft:", StringComparison.OrdinalIgnoreCase) &&
                 !name.StartsWith("World of Warcraft - ", StringComparison.OrdinalIgnoreCase))
                 return true;
-            if (Native.GetWindowThreadProcessId(window, out uint owner) == 0)
+            if (Native.GetWindowThreadProcessId(candidate, out uint owner) == 0)
                 return true;
+            if (game is not null)
+            {
+                if (owner != processId)
+                    return true;
+                window = candidate;
+                return false;
+            }
             try
             {
                 using var process = Process.GetProcessById((int)owner);
@@ -109,7 +130,12 @@ internal sealed class WowWindowCapture : IDisposable
             {
                 return true; // The process may exit during enumeration.
             }
-            Window = window;
+            var handle = Native.OpenProcess(0x00100000, false, owner); // SYNCHRONIZE
+            if (handle.IsInvalid)
+                handle.Dispose();
+            else
+                game = handle;
+            window = candidate;
             processId = owner;
             return false;
         }, 0);
@@ -117,6 +143,7 @@ internal sealed class WowWindowCapture : IDisposable
 
     public void Dispose()
     {
+        game?.Dispose();
         graphics.Dispose();
         crop.Dispose();
     }
@@ -141,5 +168,7 @@ internal sealed class WowWindowCapture : IDisposable
         [DllImport("user32.dll")] public static extern bool ClientToScreen(nint window, ref Point point);
         [DllImport("user32.dll")] public static extern nint WindowFromPoint(Point point);
         [DllImport("user32.dll")] public static extern nint GetAncestor(nint window, uint mode);
+        [DllImport("kernel32.dll")] public static extern SafeProcessHandle OpenProcess(uint access, bool inherit, uint process);
+        [DllImport("kernel32.dll")] public static extern uint WaitForSingleObject(SafeProcessHandle process, uint milliseconds);
     }
 }

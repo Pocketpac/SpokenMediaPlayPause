@@ -96,23 +96,24 @@ internal sealed class MarkerDecoder
     public const int CaptureHeight = 160;
 }
 
-/// <summary>Converts marker samples into pause intent and expires stale or obscured frames.</summary>
+/// <summary>Applies live marker states and holds the last pause decision through capture gaps.</summary>
 internal sealed class Narration
 {
     private bool? heartbeat;
-    private long? heartbeatAt, activeAt, idleAt;
+    private long? heartbeatAt, idleAt;
     public bool Connected { get; private set; }
     public bool Disabled { get; private set; }
     public bool Active { get; private set; }
 
+    /// <summary>Clear the marker and release pause intent when the tracked game exits.</summary>
     public void Reset()
     {
         heartbeat = null;
-        heartbeatAt = activeAt = idleAt = null;
+        heartbeatAt = idleAt = null;
         Connected = Disabled = Active = false;
     }
 
-    /// <summary>Requires a changing heartbeat and applies the same grace periods as Linux.</summary>
+    /// <summary>Honor live disable immediately and live idle after a 450 ms grace period.</summary>
     public void Update(MarkerReading? sample, long now)
     {
         if (sample is { } reading && heartbeat != reading.Heartbeat)
@@ -123,17 +124,26 @@ internal sealed class Narration
         }
 
         Connected = heartbeatAt is long tick && now - tick <= 2400;
-        if (Connected && sample is { } state)
+        if (!Connected || sample is not { } state)
         {
-            Disabled = state.Mode == MarkerMode.Disabled;
-            switch (state.Mode)
-            {
-                case MarkerMode.Disabled: activeAt = idleAt = null; break;
-                case MarkerMode.Narrating: activeAt = now; idleAt = null; break;
-                case MarkerMode.Idle: idleAt ??= now; break;
-            }
+            idleAt = null;
+            return;
         }
-        Active = Connected && activeAt is long lastActive && now - lastActive < 900
-            && (idleAt is null || now - idleAt.Value < 450);
+        Disabled = state.Mode == MarkerMode.Disabled;
+        switch (state.Mode)
+        {
+            case MarkerMode.Disabled:
+                Active = false;
+                idleAt = null;
+                break;
+            case MarkerMode.Narrating:
+                Active = true;
+                idleAt = null;
+                break;
+            case MarkerMode.Idle when Active:
+                idleAt ??= now;
+                Active = now - idleAt.Value < 450;
+                break;
+        }
     }
 }
