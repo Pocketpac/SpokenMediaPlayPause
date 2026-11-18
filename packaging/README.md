@@ -16,19 +16,19 @@ The build uses Jammy's Python, GTK, and system packages and builds GStreamer and
 
 ## Release files
 
-Publish the All Players AppImage, the companion addon ZIPs, and their SHA-256 checksums. The addon packager reads the version from the current WoW TOCs and generates both legacy manifests from the same source.
+Put the All Players AppImage, the Windows x64 EXE, and all companion addon ZIPs in the same GitHub release. Mark it as Latest and label the Windows download as beta and untested in the release notes until it has been tested on Windows. List direct download links in the release notes so users can choose one desktop helper and the ZIP for their WoW client.
+
+Stage the two desktop builds, the project license, and the Windows runtime notices in a clean `dist/release` directory. See the [Windows build instructions](../windows/README.md#build-from-source) for the EXE. The addon packager reads the version from the current WoW TOCs and generates both legacy manifests from the same source.
 
 ```sh
-python3 packaging/package-addon.py dist
+python3 packaging/package-addon.py dist/release
 lua5.1 tests/addon/marker.lua
 (
-  cd dist
-  sha256sum Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage \
-    SpokenMediaPause-0.4.0*.zip > SHA256SUMS
+  cd dist/release
+  sha256sum -- *.AppImage *.exe *.zip DOTNET-NOTICES.txt LICENSE > SHA256SUMS-all.txt
+  sha256sum --check SHA256SUMS-all.txt
 )
 ```
-
-For an addon-only release, checksum the ZIPs alone. Use the current TOC version in the filename pattern.
 
 ## Bundled dependencies
 

@@ -4,12 +4,12 @@
 
 Pause your music, video, or audiobook while [Spoken](https://www.curseforge.com/wow/addons/spoken) narrates in World of Warcraft. The desktop helper sends separate Pause and Play commands to compatible players and resumes only the same items it paused.
 
-Install the **companion addon** for your WoW client and run the **desktop helper** for your operating system.
+Get the **companion addon** for your WoW client and the **desktop helper** for your operating system from the [latest release](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest).
 
 | Platform | Download | Requirements |
 | --- | --- | --- |
-| Windows | [Standalone x64 EXE](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/v0.2.0-beta.3/Spoken-Media-Pause-Windows-x64-Beta.exe) · [Windows setup](#windows-setup) | Windows 11 target. **Beta, untested on Windows.** Windows 10 compatibility is unverified. |
-| Linux | [All Players AppImage](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/v0.1.2/Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage) · [Linux setup](#linux-setup) | x86-64 with glibc 2.35 or newer, including Ubuntu 22.04 |
+| Windows | [Standalone x64 EXE](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/Spoken-Media-Pause-Windows-x64-Beta.exe) · [Windows setup](#windows-setup) | Windows 11 target. **Beta, untested on Windows.** Windows 10 compatibility is unverified. |
+| Linux | [All Players AppImage](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage) · [Linux setup](#linux-setup) | x86-64 with glibc 2.35 or newer, including Ubuntu 22.04 |
 
 On both platforms, use WoW in **Windowed** or **Windowed (Fullscreen)** mode. Exclusive fullscreen may make the in-game marker unreadable.
 
@@ -22,9 +22,9 @@ On both platforms, use WoW in **Windowed** or **Windowed (Fullscreen)** mode. Ex
 
 | WoW client | Companion download |
 | --- | --- |
-| WoW Forever, Classic Era, or Burning Crusade Classic (Anniversary) | [Standard addon 0.4.0](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/addon-v0.4.0/SpokenMediaPause-0.4.0.zip) |
-| Original WotLK 3.3.5a with the [Spoken WotLK port](https://github.com/PatchFoundry335/spoken-wow) | [WotLK addon 0.4.0](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/addon-v0.4.0/SpokenMediaPause-0.4.0-WotLK-3.3.5a.zip) (experimental) |
-| Original Vanilla 1.12 with [SoftSpoken](https://github.com/z1xel/SoftSpoken) | [Vanilla addon 0.4.0](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/addon-v0.4.0/SpokenMediaPause-0.4.0-Vanilla-1.12-SoftSpoken.zip) (experimental) |
+| WoW Forever, Classic Era, or Burning Crusade Classic (Anniversary) | [Standard addon 0.4.0](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SpokenMediaPause-0.4.0.zip) |
+| Original WotLK 3.3.5a with the [Spoken WotLK port](https://github.com/PatchFoundry335/spoken-wow) | [WotLK addon 0.4.0](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SpokenMediaPause-0.4.0-WotLK-3.3.5a.zip) (experimental) |
+| Original Vanilla 1.12 with [SoftSpoken](https://github.com/z1xel/SoftSpoken) | [Vanilla addon 0.4.0](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SpokenMediaPause-0.4.0-Vanilla-1.12-SoftSpoken.zip) (experimental) |
 
 ## Windows setup
 
@@ -32,7 +32,7 @@ On both platforms, use WoW in **Windowed** or **Windowed (Fullscreen)** mode. Ex
 2. Start WoW in **Windowed** or **Windowed (Fullscreen)** mode. Keep the top-left corner of the game visible, with the helper window out of the way. The helper finds WoW and reads up to 200 × 160 pixels from that corner.
 3. [Test playback and automatic pause](#test-playback-and-automatic-pause).
 
-Windows playback uses Windows system media sessions. The player must expose Pause, Play, and item information through that interface. [Windows beta release](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/tag/v0.2.0-beta.3)
+Windows playback uses Windows system media sessions. The player must expose Pause, Play, and item information through that interface.
 
 ## Linux setup
 
@@ -92,7 +92,7 @@ If the test buttons have no effect, confirm your media is playing in a player th
 - **Windows** marker and playback logic checks passed on Linux, where the EXE was built. Screen capture, media control, and gameplay still need live Windows testing.
 - **Addon 0.4.0** manifests were checked against the published Spoken packages, and the marker was tested with simulated WoW APIs. Live Classic and legacy gameplay remain untested.
 
-[All releases and SHA-256 checksums](https://github.com/Pocketpac/SpokenMediaPlayPause/releases) · [Linux build instructions](packaging/README.md) · [Windows build instructions](windows/README.md#build-from-source)
+[SHA-256 checksums](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SHA256SUMS-all.txt) · [Linux build instructions](packaging/README.md) · [Windows build instructions](windows/README.md#build-from-source)
 
 ## License
 
