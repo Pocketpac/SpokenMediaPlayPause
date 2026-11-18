@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Spoken Media Pause
+Comment=Pause Firefox during Spoken narration in World of Warcraft
+Exec=Spoken-Media-Pause
+Icon=spoken-media-pause
+Terminal=false
+Categories=AudioVideo;

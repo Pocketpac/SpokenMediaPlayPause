@@ -1,0 +1,5 @@
+gstreamer-1.28.9.tar.xz	6dbf744f583131a34845cc641e803843766a9ba80ce00378a9043fd6d8d5fb38	https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.28.9.tar.xz
+gst-plugins-base-1.28.9.tar.xz	c1fda668b520e6aef763c0eb962c032c9fe52bce322e8b00c69b4e9e847bddc1	https://gstreamer.freedesktop.org/src/gst-plugins-base/gst-plugins-base-1.28.9.tar.xz
+pipewire-1.6.11.tar.gz	f3f70c4af173cc93d05070a9d412efe3ef5889bdf4ac32298e2c0d9ae1350559	https://codeload.github.com/PipeWire/pipewire/tar.gz/refs/tags/1.6.11
+meson-1.7.2.tar.gz	3640ef596523393100df31ba790bc5fe732215e9711a66b673a21c4eb39bc8f1	https://codeload.github.com/mesonbuild/meson/tar.gz/refs/tags/1.7.2
+runtime-x86_64	617aa77314d57c8b8e4fae9c3f0b35af7b30d5529cb69e98f64f92510ed98a46	https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64

@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+app_root=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+app_lib="$app_root/usr/lib"
+app_data="$app_root/usr/share"
+unset PYTHONPATH GST_PLUGIN_PATH GST_PLUGIN_PATH_1_0
+export PYTHONHOME="$app_root/usr" PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1
+export LD_LIBRARY_PATH="$app_lib"
+export GI_TYPELIB_PATH="$app_lib/girepository-1.0" GIO_MODULE_DIR="$app_lib/gio/modules"
+export XDG_DATA_DIRS="$app_data:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+export GST_PLUGIN_SYSTEM_PATH_1_0="$app_lib/gstreamer-1.0"
+export GST_PLUGIN_SCANNER="$app_lib/gstreamer-1.0/gst-plugin-scanner"
+export GST_REGISTRY_1_0="${XDG_CACHE_HOME:-$HOME/.cache}/spoken-media-pause/gstreamer-1.28-registry-jammy-x86_64.bin"
+export PIPEWIRE_MODULE_DIR="$app_lib/pipewire-0.3" SPA_PLUGIN_DIR="$app_lib/spa-0.2"
+export PIPEWIRE_CONFIG_DIR="${PIPEWIRE_CONFIG_DIR:-$app_data/pipewire}"
+export FONTCONFIG_PATH="${FONTCONFIG_PATH:-$app_data/spoken-media-pause/fontconfig}"
+export FONTCONFIG_FILE="${FONTCONFIG_FILE:-$app_data/spoken-media-pause/fontconfig/fonts.conf}"
+export GSK_RENDERER="${GSK_RENDERER:-cairo}"
+exec "$app_root/usr/bin/python3.10" "$app_data/spoken-media-pause/spoken-media-pause.py" --status-window "$@"

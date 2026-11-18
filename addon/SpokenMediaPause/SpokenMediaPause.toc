@@ -1,0 +1,8 @@
+## Interface: 16001
+## Title: Spoken Media Pause
+## Notes: Shows whether Spoken is narrating for the desktop companion.
+## Version: 0.3.0
+## Dependencies: Spoken
+## SavedVariables: SpokenMediaPauseDisabled
+
+SpokenMediaPause.lua
