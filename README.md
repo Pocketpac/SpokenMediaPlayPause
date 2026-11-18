@@ -8,8 +8,8 @@ Install the **companion addon** for your WoW client and run the **desktop helper
 
 | Platform | Download | Requirements |
 | --- | --- | --- |
-| Linux | [All Players AppImage](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/v0.1.1/Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage) · [Linux setup](#linux-setup) | x86-64 with glibc 2.35 or newer, including Ubuntu 22.04 |
 | Windows | [Standalone x64 EXE](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/v0.2.0-beta.2/Spoken-Media-Pause-Windows-x64-Beta.exe) · [Windows setup](#windows-setup) | Windows 11 target. **Beta, untested on Windows.** Windows 10 compatibility is unverified. |
+| Linux | [All Players AppImage](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/v0.1.1/Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage) · [Linux setup](#linux-setup) | x86-64 with glibc 2.35 or newer, including Ubuntu 22.04 |
 
 ## Install the addon
 
@@ -23,6 +23,14 @@ Install the **companion addon** for your WoW client and run the **desktop helper
 | WoW Forever, Classic Era, or Burning Crusade Classic (Anniversary) | [Standard addon 0.4.0](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/addon-v0.4.0/SpokenMediaPause-0.4.0.zip) |
 | Original WotLK 3.3.5a with the [Spoken WotLK port](https://github.com/PatchFoundry335/spoken-wow) | [WotLK addon 0.4.0](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/addon-v0.4.0/SpokenMediaPause-0.4.0-WotLK-3.3.5a.zip) (experimental) |
 | Original Vanilla 1.12 with [SoftSpoken](https://github.com/z1xel/SoftSpoken) | [Vanilla addon 0.4.0](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/addon-v0.4.0/SpokenMediaPause-0.4.0-Vanilla-1.12-SoftSpoken.zip) (experimental) |
+
+## Windows setup
+
+1. Download and double-click `Spoken-Media-Pause-Windows-x64-Beta.exe`. The standalone download bundles the .NET runtime. The beta EXE is unsigned.
+2. Start WoW in **Windowed** or **Windowed (Fullscreen)** mode. Keep the top-left corner of the game visible, with the helper window out of the way. The helper finds WoW and reads up to 200 × 160 pixels from that corner.
+3. [Test playback and automatic pause](#test-playback-and-automatic-pause).
+
+Windows playback uses Windows system media sessions. The player must expose Pause, Play, and item information through that interface. [Windows beta release](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/tag/v0.2.0-beta.2)
 
 ## Linux setup
 
@@ -55,14 +63,6 @@ If your Wayland picker offers only monitor sharing, close the helper and relaunc
 ```
 
 Linux playback works with players that expose Pause, Play, and track or item information through MPRIS. The helper uses D-Bus directly and needs neither `playerctl` nor a browser extension.
-
-## Windows setup
-
-1. Download and double-click `Spoken-Media-Pause-Windows-x64-Beta.exe`. The standalone download bundles the .NET runtime. The beta EXE is unsigned.
-2. Start WoW in **Windowed** or **Windowed (Fullscreen)** mode. Keep the top-left corner of the game visible, with the helper window out of the way. The helper finds WoW and reads up to 200 × 160 pixels from that corner.
-3. [Test playback and automatic pause](#test-playback-and-automatic-pause).
-
-Windows playback uses Windows system media sessions. The player must expose Pause, Play, and item information through that interface. [Windows beta release](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/tag/v0.2.0-beta.2)
 
 ## Test playback and automatic pause
 
