@@ -9,8 +9,10 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>Spoken-Media-Pause-Windows-x64-Beta</AssemblyName>
+    <!-- Use the multiresolution logo in Explorer and embed it for the status window. -->
+    <ApplicationIcon>spoken-media-pause.ico</ApplicationIcon>
     <Product>Spoken Media Pause for Windows (Beta)</Product>
-    <Version>0.2.0-beta.1</Version>
+    <Version>0.2.0-beta.2</Version>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
@@ -18,4 +20,9 @@
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <DebugType>none</DebugType>
   </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="spoken-media-pause.ico" LogicalName="SpokenMediaPause.AppIcon" />
+    <!-- Keep the project license with copies of the standalone executable. -->
+    <EmbeddedResource Include="../LICENSE" LogicalName="SpokenMediaPause.LICENSE" />
+  </ItemGroup>
 </Project>

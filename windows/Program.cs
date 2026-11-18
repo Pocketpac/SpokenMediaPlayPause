@@ -17,7 +17,11 @@ internal static class Program
             Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainWindow());
+            // Load the packaged icon once and keep it alive until the window closes.
+            using var iconStream = typeof(Program).Assembly.GetManifestResourceStream("SpokenMediaPause.AppIcon");
+            using var icon = new Icon(iconStream!);
+            using var window = new MainWindow { Icon = icon };
+            Application.Run(window);
         }
         finally { singleton.ReleaseMutex(); }
     }

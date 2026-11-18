@@ -89,9 +89,10 @@ for source in list(elfs):
 (lib / "gio/modules").mkdir(parents=True)
 for path in sorted((repo / "desktop").glob("*.py")):
     copy(path, "usr/share/spoken-media-pause/" + path.name)
-for filename in ("spoken-media-pause.desktop", "spoken-media-pause.svg"):
-    copy(repo / "packaging" / filename, filename)
-os.symlink("spoken-media-pause.svg", out / ".DirIcon")
+copy(repo / "packaging/spoken-media-pause.desktop", "spoken-media-pause.desktop")
+# AppImage launchers use .DirIcon or the desktop entry's icon name to find the same PNG.
+copy(repo / "assets/spoken-media-pause.png", "spoken-media-pause.png")
+os.symlink("spoken-media-pause.png", out / ".DirIcon")
 copy(repo / "packaging/AppRun", "AppRun")
 copy(repo / "desktop/README.txt", "README.txt")
 
@@ -103,6 +104,8 @@ for config in sorted(Path("/etc/fonts/conf.d").glob("*.conf")):
 
 licenses = out / "usr/share/licenses"
 licenses.mkdir(parents=True)
+# Include the project's MIT notice alongside the bundled dependency licenses.
+copy(repo / "LICENSE", licenses / "Spoken-Media-Pause.txt")
 (licenses / "components.txt").write_text(subprocess.check_output([
     "dpkg-query", "-W", "-f=${binary:Package}\t${Version}\t${source:Package}\t${source:Version}\n", *sorted(packages),
 ], text=True))

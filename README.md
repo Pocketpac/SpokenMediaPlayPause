@@ -1,13 +1,15 @@
 # Spoken Media Pause
 
+<img src="assets/spoken-media-pause.png" alt="Overlapping Play and Pause logo" width="112">
+
 Pause your music, video, or audiobook while [Spoken](https://www.curseforge.com/wow/addons/spoken) narrates in World of Warcraft. The desktop helper sends separate Pause and Play commands to compatible players and resumes only the same items it paused.
 
 Install the **companion addon** for your WoW client and run the **desktop helper** for your operating system.
 
 | Platform | Download | Requirements |
 | --- | --- | --- |
-| Linux | [All Players AppImage](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/v0.1.0/Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage) · [Linux setup](#linux-setup) | x86-64 with glibc 2.35 or newer, including Ubuntu 22.04 |
-| Windows | [Standalone x64 EXE](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/v0.2.0-beta.1/Spoken-Media-Pause-Windows-x64-Beta.exe) · [Windows setup](#windows-setup) | Windows 11 target. **Beta, untested on Windows.** Windows 10 compatibility is unverified. |
+| Linux | [All Players AppImage](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/v0.1.1/Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage) · [Linux setup](#linux-setup) | x86-64 with glibc 2.35 or newer, including Ubuntu 22.04 |
+| Windows | [Standalone x64 EXE](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/v0.2.0-beta.2/Spoken-Media-Pause-Windows-x64-Beta.exe) · [Windows setup](#windows-setup) | Windows 11 target. **Beta, untested on Windows.** Windows 10 compatibility is unverified. |
 
 ## Install the addon
 
@@ -60,7 +62,7 @@ Linux playback works with players that expose Pause, Play, and track or item inf
 2. Start WoW in **Windowed** or **Windowed (Fullscreen)** mode. Keep the top-left corner of the game visible, with the helper window out of the way. The helper finds WoW and reads up to 200 × 160 pixels from that corner.
 3. [Test playback and automatic pause](#test-playback-and-automatic-pause).
 
-Windows playback uses Windows system media sessions. The player must expose Pause, Play, and item information through that interface. [Windows beta release](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/tag/v0.2.0-beta.1)
+Windows playback uses Windows system media sessions. The player must expose Pause, Play, and item information through that interface. [Windows beta release](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/tag/v0.2.0-beta.2)
 
 ## Test playback and automatic pause
 
