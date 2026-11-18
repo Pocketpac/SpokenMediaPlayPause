@@ -77,3 +77,7 @@ If the test buttons have no effect, confirm your media is playing in a player th
 - **Addon 0.4.0** manifests were checked against the published Spoken packages, and the marker was tested with simulated WoW APIs. Live Classic and legacy gameplay remain untested.
 
 [All releases and SHA-256 checksums](https://github.com/Pocketpac/SpokenMediaPlayPause/releases) · [Linux build instructions](packaging/README.md) · [Windows build instructions](windows/README.md#build-from-source)
+
+## License
+
+The original Spoken Media Pause code is available under the [MIT License](LICENSE). Third-party components are governed by their respective licenses.
