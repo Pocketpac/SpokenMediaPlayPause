@@ -23,9 +23,9 @@ def version_of(manifest):
     return match.group(1)
 
 
-def write_zip(path, source, manifests):
-    """Write one installable AddOns folder with a shared Lua file and its load manifests."""
-    entries = {f"{NAME}.lua": source, **manifests}
+def write_zip(path, assets, manifests):
+    """Write one installable AddOns folder with shared files and client-specific manifests."""
+    entries = {**assets, **manifests}
     with ZipFile(path, "w") as archive:
         for filename, content in sorted(entries.items()):
             # A fixed timestamp and mode keep identical inputs reproducible.
@@ -43,7 +43,8 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
 
     folder = ROOT / "addon" / NAME
-    source = (folder / f"{NAME}.lua").read_bytes()
+    assets = {name: (folder / name).read_bytes() for name in (f"{NAME}.lua", "BrassBadge.tga")}
+    assets["LICENSE"] = (ROOT / "LICENSE").read_bytes()
     manifests = {path.name: path.read_text() for path in folder.glob("*.toc")}
     default_name = f"{NAME}.toc"
     default_manifest = manifests[default_name]
@@ -52,13 +53,13 @@ def main():
         raise ValueError("Addon TOCs must agree on the release version")
 
     current_zip = output / f"{NAME}-{version}.zip"
-    write_zip(current_zip, source, manifests)
+    write_zip(current_zip, assets, manifests)
     print(current_zip)
     for suffix, interface, dependency in LEGACY_TARGETS:
         manifest = re.sub(r"^## Interface: .*$", f"## Interface: {interface}", default_manifest, flags=re.MULTILINE)
         manifest = re.sub(r"^## Dependencies: .*$", f"## Dependencies: {dependency}", manifest, flags=re.MULTILINE)
         legacy_zip = output / f"{NAME}-{version}-{suffix}.zip"
-        write_zip(legacy_zip, source, {default_name: manifest})
+        write_zip(legacy_zip, assets, {default_name: manifest})
         print(legacy_zip)
 
 

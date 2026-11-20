@@ -167,6 +167,10 @@ class ScreenCast:
 # Six cells shared with SpokenMediaPause.lua. RGB bit codes are ordered red,
 # green, blue. Values near a color boundary are rejected to tolerate scaling.
 MAGENTA, CYAN, YELLOW, BLUE, RED, GREEN, WHITE, BLACK = 5, 3, 6, 1, 4, 2, 7, 0
+# Fixed tones and an inverse mode identify the Lua addon's lower bevel strip.
+BRASS_KEY = 8
+BRASS_FIXED = ((1, 0), (2, 2), (3, 1), (7, 0))
+BRASS_STATES = (RED, GREEN, WHITE)
 CROP_WIDTH, CROP_HEIGHT = 200, 160
 PORTAL_MAX_FPS = 6
 POLL_MS = 80
@@ -185,30 +189,108 @@ class Frame:
         self.channels = channels
         self.pixel_size = pixel_size
 
-    def color(self, x, y):
-        """Return a three-bit RGB color or -1 for mixed or out-of-bounds pixels."""
-        if not (0 <= x < self.width and 0 <= y < self.height):
-            return -1
+    def row(self, y):
+        """Extract a cropped row once, even if several candidates sample it."""
         # PyGObject's map.data copies the whole buffer. Extract just the
-        # requested rows within our crop, normally two rows per fresh frame.
+        # requested rows within our crop, normally two or three per frame.
         row = self.rows.get(y)
         if row is None:
             row = self.extract(self.offset + y * self.stride, self.width * self.pixel_size)
             self.rows[y] = row
+        return row
+
+    def rgb(self, x, y):
+        """Read one bounded pixel for marker validation."""
+        if not (0 <= x < self.width and 0 <= y < self.height):
+            return None
+        row = self.row(y)
         index = x * self.pixel_size
         if index + self.pixel_size > len(row):
+            return None
+        red, green, blue = self.channels
+        return row[index + red], row[index + green], row[index + blue]
+
+    def color(self, x, y):
+        """Return a legacy three-bit RGB color or -1 for an ambiguous pixel."""
+        rgb = self.rgb(x, y)
+        if rgb is None:
             return -1
         code = 0
-        for channel in self.channels:
-            value = row[index + channel]
+        for value in rgb:
             if 80 < value < 175:
                 return -1
             code = (code << 1) | (value >= 175)
         return code
 
+    @staticmethod
+    def brass_tone(red, green, blue):
+        """Classify muted shadow colors by channel differences, rejecting blended edges."""
+        if not 23 <= (red + 2 * green + blue) // 4 <= 58:
+            return -1
+        red_green, green_blue = red - green, green - blue
+        if 8 <= red_green <= 26 and 8 <= green_blue <= 28:
+            return 0
+        if -26 <= red_green <= -7 and -14 <= green_blue <= 5:
+            return 1
+        if 11 <= red_green <= 32 and -28 <= green_blue <= -7:
+            return 2
+        if -15 <= red_green <= 5 and -37 <= green_blue <= -18:
+            return 3
+        if -22 <= red_green <= -4 and 7 <= green_blue <= 25:
+            return 4
+        return -1
+
+    def key_in_row(self, row, x):
+        """Recognize either first-cell color while scanning a cropped row."""
+        index = x * self.pixel_size
+        if index + self.pixel_size > len(row):
+            return -1
+        r, g, b = self.channels
+        red, green, blue = row[index + r], row[index + g], row[index + b]
+        if red >= 175 and green <= 80 and blue >= 175:
+            return MAGENTA
+        # This muted purple is uncommon in the dark terrain behind the badge.
+        if red - green >= 11 and blue - green >= 7 and self.brass_tone(red, green, blue) == 2:
+            return BRASS_KEY
+        return -1
+
+    def key(self, x, y):
+        """Validate the first cell of an existing brass anchor."""
+        if not (0 <= x < self.width and 0 <= y < self.height):
+            return -1
+        return self.key_in_row(self.row(y), x)
+
+    def tone(self, x, y):
+        """Read a bevel cell at the projected cell center."""
+        rgb = self.rgb(x, y)
+        return self.brass_tone(*rgb) if rgb is not None else -1
+
+    def read_brass(self, x, y, pitch):
+        """Validate all eight cells at the supplied eighth-pixel pitch."""
+        for column, tone in BRASS_FIXED:
+            if self.tone(x + (column * pitch + 4) // 8, y) != tone:
+                return None
+        state = self.tone(x + (4 * pitch + 4) // 8, y)
+        inverse = self.tone(x + (5 * pitch + 4) // 8, y)
+        clock = self.tone(x + (6 * pitch + 4) // 8, y)
+        if 0 <= state <= 2 and inverse == 2 - state and clock in (3, 4):
+            return BRASS_STATES[state], clock == 4
+        return None
+
     def read(self, anchor):
-        """Validate four fixed cells and return (state color, heartbeat) if present."""
-        x, y, size = anchor
+        """Return the validated state and heartbeat from either marker style."""
+        x, y, pitch, key = anchor
+        if key == BRASS_KEY:
+            if self.key(x, y) != BRASS_KEY:
+                return None
+            # At fractional UI scales a boundary pixel can change color when
+            # its neighbor changes state. Try nearby pitch before rescanning.
+            for adjustment in (0, 1, -1, 2, -2):
+                state = self.read_brass(x, y, pitch + adjustment)
+                if state is not None:
+                    return state
+            return None
+        size = pitch // 8
         if (self.color(x, y) != MAGENTA or self.color(x + size, y) != CYAN
                 or self.color(x, y + size) != YELLOW or self.color(x + size, y + size) != BLUE):
             return None
@@ -219,25 +301,40 @@ class Frame:
         return None
 
     def locate(self):
-        """Find the marker after startup or a resize by the width of its first cell."""
-        for y in range(1, self.height, 2):
+        """Find either marker after startup or resize using its first cell's width."""
+        for y in range(self.height):
+            row = self.row(y)
             x = 0
             while x < self.width:
-                if self.color(x, y) != MAGENTA:
+                key = self.key_in_row(row, x)
+                if key == -1:
                     x += 1
                     continue
                 left = x
-                while self.color(x, y) == MAGENTA:
+                while x < self.width and self.key_in_row(row, x) == key:
                     x += 1
                 width = x - left
-                if 3 <= width <= 44:
-                    center = (left + x - 1) // 2
-                    for size in range(max(3, width - 1), width + 5):
-                        for shift in (0, 1):
-                            anchor = center + shift, y, size
+                if key == BRASS_KEY:
+                    if width > 24:
+                        continue
+                    pitches = range(max(12, 8 * (width - 1)), 8 * (width + 2) + 1)
+                else:
+                    if not 3 <= width <= 44:
+                        continue
+                    pitches = range(8 * max(3, width - 1), 8 * (width + 5), 8)
+                center = (left + x - 1) // 2
+                for pitch in pitches:
+                    for shift in (0, 1):
+                        sample_x = center + shift
+                        if sample_x >= x:
+                            continue
+                        anchor = sample_x, y, pitch, key
+                        if key == BRASS_KEY:
+                            state = self.read_brass(sample_x, y, pitch)
+                        else:
                             state = self.read(anchor)
-                            if state is not None:
-                                return anchor, state
+                        if state is not None:
+                            return anchor, state
         return None, None
 
 

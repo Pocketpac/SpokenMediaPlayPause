@@ -50,7 +50,38 @@ def check_playback():
     assert commands == [True, False, True, False]
 
 
-def check_window_replacement():
+def fixture_checks(fixtures):
+    """Check the same Lua-rendered crops as Windows, through the PipeWire frame reader."""
+    modes = {"idle": helper.RED, "narrating": helper.GREEN, "off": helper.WHITE}
+    helper.Gst.init(None)
+    caps = helper.Gst.Caps.from_string("video/x-raw,format=BGRx,width=200,height=160,framerate=6/1")
+
+    def load_frame(name):
+        """Read a fixture through the same frame adapter used by the Wayland stream."""
+        buffer = helper.Gst.Buffer.new_wrapped((fixtures / name).read_bytes())
+        return helper.frame_view(helper.Gst.Sample.new(buffer, caps, None, None))
+
+    count = 0
+    for line in (fixtures / "expected.tsv").read_text().splitlines():
+        name, mode, heartbeat = line.split("\t")
+        frame = load_frame(name)
+        anchor, actual = frame.locate()
+        expected = None if mode == "-" else (modes[mode], heartbeat == "1")
+        assert actual == expected, (name, actual, expected)
+        if anchor is not None:
+            assert frame.read(anchor) == expected, name
+            if name.startswith("brass-"):
+                # A state change can alter blended edge pixels at fractional scales.
+                variant = name.split("-", 3)[3]
+                flip = "dark" if heartbeat == "1" else "light"
+                for next_mode, code in modes.items():
+                    next_name = f"brass-{next_mode}-{flip}-{variant}"
+                    assert load_frame(next_name).read(anchor) == (code, flip == "light"), (name, next_name)
+        count += 1
+    print(f"Decoded {count} Lua-rendered GStreamer crops.")
+
+
+def check_window_replacement(fixtures=None):
     """Keep the X11 source across a new window and end it on process exit."""
     connection = display.Display()
     root = connection.screen().root
@@ -68,18 +99,32 @@ def check_window_replacement():
         connection.sync()
         return window
 
+    def verify_capture(window, now):
+        """Read an actual X11 upload of the Lua-rendered brass badge."""
+        if fixtures is not None:
+            data = (fixtures / "brass-idle-light-1.6-0.bgra").read_bytes()
+            gc = window.create_gc()
+            window.put_image(gc, 0, 0, 200, 160, X.ZPixmap, connection.screen().root_depth, 0, data)
+            connection.sync()
+        frame = capture.sample(now)
+        assert frame is not None
+        if fixtures is not None:
+            assert frame.locate()[1] == (helper.RED, True)
+
     capture = helper.X11Capture()
     try:
         with subprocess.Popen(["sleep", "30"]) as game:
             try:
                 first = open_window(game.pid)
-                assert capture.find_window() and capture.sample(0) is not None
+                assert capture.find_window()
+                verify_capture(first, 0)
                 first.destroy()
                 connection.sync()
                 assert capture.sample(1) is None
                 assert capture.sample(1.1) is None
                 replacement = open_window(game.pid)
-                assert capture.sample(2.2) is not None and capture.window.id == replacement.id
+                verify_capture(replacement, 2.2)
+                assert capture.window.id == replacement.id
             finally:
                 game.terminate()
                 game.wait()
@@ -97,6 +142,9 @@ def check_window_replacement():
 
 
 if __name__ == "__main__":
+    fixtures = Path(sys.argv[1]) if len(sys.argv) == 2 else None
+    if fixtures is not None:
+        fixture_checks(fixtures)
     check_playback()
-    check_window_replacement()
+    check_window_replacement(fixtures)
     print("Linux marker hold and X11 replacement checks passed.")

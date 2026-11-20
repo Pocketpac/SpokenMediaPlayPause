@@ -4,8 +4,10 @@ using SpokenMediaPause.Core;
 /// <summary>Runs decoder, timing, and media ownership regressions against portable fixtures.</summary>
 static class Checks
 {
-    static void Main()
+    static void Main(string[] args)
     {
+        if (args.Length == 1)
+            CheckFixtures(args[0]);
         using var context = new UiContext();
         SynchronizationContext.SetSynchronizationContext(context);
         var completed = RunAsync();
@@ -26,6 +28,46 @@ static class Checks
     {
         if (!value)
             throw new InvalidOperationException(message);
+    }
+
+    /// <summary>Read the same scaled addon crops as the Linux helper, including occlusions.</summary>
+    static void CheckFixtures(string directory)
+    {
+        var modes = new Dictionary<string, MarkerMode>
+        {
+            ["idle"] = MarkerMode.Idle,
+            ["narrating"] = MarkerMode.Narrating,
+            ["off"] = MarkerMode.Disabled
+        };
+        int count = 0;
+        foreach (var row in File.ReadLines(Path.Combine(directory, "expected.tsv")))
+        {
+            var fields = row.Split('\t');
+            var bytes = File.ReadAllBytes(Path.Combine(directory, fields[0]));
+            var pixels = new MarkerPixels(bytes, 200, 160, 800, false);
+            MarkerReading? expected = modes.TryGetValue(fields[1], out var mode)
+                ? new(mode, fields[2] == "1") : null;
+            var decoder = new MarkerDecoder();
+            var actual = decoder.Sample(pixels, 0);
+            Check(actual == expected, $"Fixture {fields[0]} decoded as {actual} instead of {expected}.");
+            Check(decoder.Sample(pixels, 80) == expected, $"Cached fixture {fields[0]} changed reading.");
+            if (decoder.Anchor is { Brass: true } anchor)
+            {
+                // An anchor must survive changed colors on partially covered cell edges.
+                string variant = fields[0].Split('-', 4)[3];
+                bool heartbeat = fields[2] == "0";
+                string clock = heartbeat ? "light" : "dark";
+                foreach (var (nextName, nextMode) in modes)
+                {
+                    string name = $"brass-{nextName}-{clock}-{variant}";
+                    var next = new MarkerPixels(File.ReadAllBytes(Path.Combine(directory, name)), 200, 160, 800, false);
+                    Check(next.Read(anchor) == new MarkerReading(nextMode, heartbeat),
+                        $"Cached fixture {fields[0]} failed to read {name}.");
+                }
+            }
+            count++;
+        }
+        Console.WriteLine($"Decoded {count} Lua-rendered BGRA crops.");
     }
 
     static void CheckMarker()

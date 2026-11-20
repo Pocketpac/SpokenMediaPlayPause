@@ -18,13 +18,13 @@ On both platforms, use WoW in **Windowed** or **Windowed (Fullscreen)** mode. Ex
 1. Install Spoken or the matching port and a voice pack for your client.
 2. Download the matching companion ZIP below. The same ZIP works with both desktop helpers.
 3. With WoW closed, extract the ZIP into that client's `Interface/AddOns` folder. The resulting path should be `Interface/AddOns/SpokenMediaPause/SpokenMediaPause.lua`.
-4. At the character selection screen, open **AddOns** and enable Spoken (or SoftSpoken) and **Spoken Media Pause**. After logging in, look for the [colored marker](#in-game-marker) in the top-left corner.
+4. At the character selection screen, open **AddOns** and enable Spoken (or SoftSpoken) and **Spoken Media Pause**. After logging in, look for the [brass badge](#in-game-marker) in the top-left corner.
 
 | WoW client | Companion download |
 | --- | --- |
-| WoW Forever, Classic Era, or Burning Crusade Classic (Anniversary) | [Standard addon 0.4.0](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SpokenMediaPause-0.4.0.zip) |
-| Original WotLK 3.3.5a with the [Spoken WotLK port](https://github.com/PatchFoundry335/spoken-wow) | [WotLK addon 0.4.0](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SpokenMediaPause-0.4.0-WotLK-3.3.5a.zip) (experimental) |
-| Original Vanilla 1.12 with [SoftSpoken](https://github.com/z1xel/SoftSpoken) | [Vanilla addon 0.4.0](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SpokenMediaPause-0.4.0-Vanilla-1.12-SoftSpoken.zip) (experimental) |
+| WoW Forever, Classic Era, or Burning Crusade Classic (Anniversary) | [Standard addon 0.5.2](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SpokenMediaPause-0.5.2.zip) |
+| Original WotLK 3.3.5a with the [Spoken WotLK port](https://github.com/PatchFoundry335/spoken-wow) | [WotLK addon 0.5.2](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SpokenMediaPause-0.5.2-WotLK-3.3.5a.zip) (experimental) |
+| Original Vanilla 1.12 with [SoftSpoken](https://github.com/z1xel/SoftSpoken) | [Vanilla addon 0.5.2](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SpokenMediaPause-0.5.2-Vanilla-1.12-SoftSpoken.zip) (experimental) |
 
 ## Windows setup
 
@@ -68,29 +68,31 @@ Linux playback works with players that expose Pause, Play, and track or item inf
 
 ## In-game marker
 
-![Six colored squares in the top-left corner of WoW. The red top-right square shows that auto-pause is on and Spoken is idle.](assets/in-game-marker.png)
+![The brass Spoken Media Pause badge in the top-left corner of WoW, glowing amber during narration.](assets/in-game-marker.png)
 
-Look for two rows of three colored squares just inside the top-left corner of WoW. Click anywhere in the box to turn automatic pause off or back on. The **top-right square** shows the current state.
+Look for the small brass badge just inside the top-left corner of WoW. Click it to turn automatic pause off or back on.
 
-- **Red** means auto-pause is on and Spoken is idle, as shown above.
-- **Green** means Spoken is narrating and the desktop helper should pause compatible media.
-- **White** means auto-pause is off.
+- **Unlit bars** mean auto-pause is enabled and Spoken is idle.
+- **Glowing amber bars**, as shown above, mean Spoken is narrating and the desktop helper should pause compatible media.
+- **A diagonal slash** means auto-pause is off.
 
-The bottom-right square blinks so the helper can detect when the game image stops updating. If the marker disappears or freezes during a resolution or display mode change, the helper keeps its last pause decision until it can read a live marker again. When narration ends, you turn auto-pause off, or the helper detects that WoW or the capture session has closed, it releases any automatic pauses it still owns. If the marker stays unreadable, close the helper to release its pause.
+Use the desktop helper from the same release to read the brass badge. In WoW chat, enter `/smp classic` to use the six-color marker with an earlier helper, or `/smp brass` to return to the new badge.
+
+If the marker disappears or freezes during a resolution or display mode change, the helper keeps its last pause decision until it can read a live marker again. When narration ends, you turn auto-pause off, or the helper detects that WoW or the capture session has closed, it releases any automatic pauses it still owns. If the marker stays unreadable, close the helper to release its pause.
 
 ## Test playback and automatic pause
 
 1. **Check your player.** Start a song, video, or audiobook in your player. Click **Test Pause**, then **Test Play** in the helper. Both buttons work with WoW closed. **Test Play** resumes the same item paused by **Test Pause**.
 2. **Check Spoken.** With your media playing and the helper running, trigger a voiced quest or NPC dialogue in WoW. Your media should pause while Spoken speaks and resume when narration ends.
-3. **Check the toggle.** Click the [in-game marker](#in-game-marker) and check that its top-right square turns white. Click it again to turn auto-pause back on.
+3. **Check the toggle.** Click the [in-game badge](#in-game-marker) during narration. The slash should appear and the helper should release its pause. Click again to re-enable auto-pause.
 
 If the test buttons have no effect, confirm your media is playing in a player that exposes your operating system's media controls. Try a regular track or video if a live stream fails. If the buttons work but automatic pause fails, check that both addons are enabled, Spoken is playing audible narration, and the marker is visible and enabled. On native Wayland, also check which window or monitor you shared.
 
 ## Verification
 
-- **Linux** playback was tested with Firefox and VLC using local media. Capture was tested with a simulated WoW marker on X11, XWayland, and KDE Wayland window and monitor sharing.
+- **Linux** 0.5.2 companion build passed the Ubuntu 22.04 library check, X11 capture and automatic pause/resume with a simulated WoW window, and both playback buttons with no game window. Earlier builds were tested on XWayland and KDE Wayland window and monitor sharing.
 - **Windows** marker and playback logic checks passed on Linux, where the EXE was built. Screen capture, media control, and gameplay still need live Windows testing.
-- **Addon 0.4.0** manifests were checked against the published Spoken packages, and the marker was tested with simulated WoW APIs. Live Classic and legacy gameplay remain untested.
+- **Addon 0.5.2** was checked with simulated WoW APIs. Both companions passed rendered brass and classic marker checks. Live Classic and legacy gameplay remain untested.
 
 [SHA-256 checksums](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SHA256SUMS-all.txt) · [Linux build instructions](packaging/README.md) · [Windows build instructions](windows/README.md#build-from-source)
 
