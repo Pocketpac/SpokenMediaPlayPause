@@ -33,7 +33,8 @@ function Invoke-Button($Window, [string]$Name) {
 function New-Tone([string]$Path) {
     # Generate a small loopable PCM sample. No external media or accounts are used.
     $rate = 16000
-    $samples = 2 * $rate
+    # Firefox excludes clips of three seconds or less from desktop media controls.
+    $samples = 12 * $rate
     $writer = [IO.BinaryWriter]::new([IO.File]::Create($Path))
     try {
         $writer.Write([Text.Encoding]::ASCII.GetBytes('RIFF'))
@@ -71,11 +72,22 @@ function Audio-State {
     }
 }
 
+function Window-Text($Window) {
+    # Include only our app's labels when a test fails, including playback feedback.
+    foreach ($control in $Window.FindAll([System.Windows.Automation.TreeScope]::Descendants,
+            [System.Windows.Automation.Condition]::TrueCondition)) {
+        if ($control.Current.ControlType -eq [System.Windows.Automation.ControlType]::Text) {
+            $control.Current.Name
+        }
+    }
+}
+
 $fixture = Join-Path $env:RUNNER_TEMP 'spoken-media-fixture'
 $null = New-Item -ItemType Directory -Path $fixture -Force
 $app = $null
 $driver = $null
 $driverSession = $null
+$game = $null
 try {
     $app = Start-Process -FilePath $Exe -PassThru
     $window = Wait-For 'the Spoken Media Pause status window' {
@@ -152,7 +164,37 @@ document.getElementById("start").onclick = () => audio.play();
     Invoke-Button $window 'Test Play'
     $null = Wait-For 'the same Firefox tone resumed by the EXE' { -not (Audio-State).paused } 25
     Write-Host 'PASS: Test Play resumed the same Firefox media session'
+
+    # Run the normal capture path against a controlled window with the addon's brass marker tones.
+    $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+    $stub = Join-Path $fixture 'wow.exe'
+    $source = Join-Path $PSScriptRoot '..\hosted-windows\HostedMarkerFixture.cs'
+    & $csc /nologo /target:winexe "/out:$stub" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll $source
+    if ($LASTEXITCODE -ne 0) { throw 'Could not compile the simulated WoW window' }
+    $marker = Join-Path $fixture 'marker.txt'
+    Set-Content -LiteralPath $marker -Value 'idle'
+    $game = Start-Process -FilePath $stub -ArgumentList ('"{0}"' -f $marker) -PassThru
+    $null = Wait-For 'the live idle brass marker' { Find-Control $window 'Ready' }
+    Set-Content -LiteralPath $marker -Value 'narrating'
+    $null = Wait-For 'automatic pause through Windows screen capture' { (Audio-State).paused }
+    Set-Content -LiteralPath $marker -Value 'missing'
+    $null = Wait-For 'the held pause status after marker loss' { (Window-Text $window) -like '*pause held*' }
+    Start-Sleep -Milliseconds 2600
+    if (-not (Audio-State).paused) { throw 'Playback resumed while the marker was missing' }
+    Set-Content -LiteralPath $marker -Value 'idle'
+    $null = Wait-For 'automatic resume after recapturing the idle marker' { -not (Audio-State).paused }
+    Set-Content -LiteralPath $marker -Value 'narrating'
+    $null = Wait-For 'automatic pause before simulated game exit' { (Audio-State).paused }
+    Set-Content -LiteralPath $marker -Value 'close'
+    $null = Wait-For 'automatic resume when the simulated game closes' { -not (Audio-State).paused }
+    Write-Host 'PASS: automatic Pause, hold through a capture gap, Play on live idle and game exit'
+} catch {
+    if ($window) {
+        try { Write-Host ('Companion labels: ' + ((Window-Text $window) -join ' | ')) } catch { }
+    }
+    throw
 } finally {
+    if ($game -and -not $game.HasExited) { Stop-Process -Id $game.Id -ErrorAction SilentlyContinue }
     if ($driverSession) {
         try { $null = Driver-Call DELETE "/session/$driverSession" } catch { }
     }
