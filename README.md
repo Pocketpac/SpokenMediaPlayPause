@@ -8,7 +8,7 @@ Get the **companion addon** for your WoW client and the **desktop helper** for y
 
 | Platform | Download | Requirements |
 | --- | --- | --- |
-| Windows | [Standalone x64 EXE](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/Spoken-Media-Pause-Windows-x64-Beta.exe) · [Windows setup](#windows-setup) | Windows 11 target. **Beta, untested on Windows.** Windows 10 compatibility is unverified. |
+| Windows | [Standalone x64 EXE](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/Spoken-Media-Pause-Windows-x64-Beta.exe) · [Windows setup](#windows-setup) | **Beta.** Targets Windows 11. Windows 10 compatibility is unverified. |
 | Linux | [All Players AppImage](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage) · [Linux setup](#linux-setup) | x86-64 with glibc 2.35 or newer, including Ubuntu 22.04 |
 
 On both platforms, use WoW in **Windowed** or **Windowed (Fullscreen)** mode. Exclusive fullscreen may make the in-game marker unreadable.
@@ -91,7 +91,7 @@ If the test buttons have no effect, confirm your media is playing in a player th
 ## Verification
 
 - **Linux** 0.5.2 companion build passed the Ubuntu 22.04 library check, X11 capture and automatic pause/resume with a simulated WoW window, and both playback buttons with no game window. Earlier builds were tested on XWayland and KDE Wayland window and monitor sharing.
-- **Windows** marker and playback logic checks passed on Linux, where the EXE was built. Screen capture, media control, and gameplay still need live Windows testing.
+- **Windows** marker and playback logic checks passed on Linux, where the beta EXE was built.
 - **Addon 0.5.2** was checked with simulated WoW APIs. Both companions passed rendered brass and classic marker checks. Live Classic and legacy gameplay remain untested.
 
 [SHA-256 checksums](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SHA256SUMS-all.txt) · [Linux build instructions](packaging/README.md) · [Windows build instructions](windows/README.md#build-from-source)
