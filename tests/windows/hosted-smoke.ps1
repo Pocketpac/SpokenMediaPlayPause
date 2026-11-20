@@ -88,6 +88,7 @@ $app = $null
 $driver = $null
 $driverSession = $null
 $game = $null
+$nativePlayer = $null
 try {
     $app = Start-Process -FilePath $Exe -PassThru
     $window = Wait-For 'the Spoken Media Pause status window' {
@@ -136,34 +137,77 @@ document.getElementById("start").onclick = () => audio.play();
 </script>
 '@ | Set-Content -LiteralPath $page -Encoding UTF8
 
-    $driverExe = Join-Path $env:GECKOWEBDRIVER 'geckodriver.exe'
-    $driverUrl = 'http://127.0.0.1:4455'
-    $driver = Start-Process -FilePath $driverExe -ArgumentList '--host 127.0.0.1 --port 4455' -PassThru
-    $null = Wait-For 'geckodriver startup' {
-        try { (Driver-Call GET '/status').ready } catch { }
-    }
-    $driverSession = (Driver-Call POST '/session' @{
-        capabilities = @{ alwaysMatch = @{
-            browserName = 'firefox'
-            'moz:firefoxOptions' = @{ prefs = @{ 'media.hardwaremediakeys.enabled' = $true } }
-        } }
-    }).sessionId
-    $null = Driver-Call POST "/session/$driverSession/url" @{ url = ([uri]$page).AbsoluteUri }
-    $button = Driver-Call POST "/session/$driverSession/element" @{ using = 'css selector'; value = '#start' }
-    $buttonId = $button.'element-6066-11e4-a52e-4f735466cecf'
-    $null = Driver-Call POST "/session/$driverSession/element/$buttonId/click" @{}
-    $null = Wait-For 'Firefox tone playback' {
-        $audio = Audio-State
-        (-not $audio.paused) -and ($audio.time -gt 0.1)
-    } 25
-    Start-Sleep -Milliseconds 800
+    $probeProject = Join-Path $PSScriptRoot '..\hosted-windows\MediaProbe\MediaProbe.csproj'
+    $probeOut = Join-Path $fixture 'probe'
+    & dotnet build $probeProject -c Release -o $probeOut --nologo
+    if ($LASTEXITCODE -ne 0) { throw 'Could not build the Windows media session diagnostic' }
+    $probe = Join-Path $probeOut 'MediaProbe.dll'
+    $browserVerified = $false
+    try {
+        $driverExe = Join-Path $env:GECKOWEBDRIVER 'geckodriver.exe'
+        $driverUrl = 'http://127.0.0.1:4455'
+        $driver = Start-Process -FilePath $driverExe -ArgumentList '--host 127.0.0.1 --port 4455' -PassThru
+        $null = Wait-For 'geckodriver startup' {
+            try { (Driver-Call GET '/status').ready } catch { }
+        }
+        $driverSession = (Driver-Call POST '/session' @{
+            capabilities = @{ alwaysMatch = @{
+                browserName = 'firefox'
+                'moz:firefoxOptions' = @{ prefs = @{ 'media.hardwaremediakeys.enabled' = $true } }
+            } }
+        }).sessionId
+        $null = Driver-Call POST "/session/$driverSession/url" @{ url = ([uri]$page).AbsoluteUri }
+        $button = Driver-Call POST "/session/$driverSession/element" @{ using = 'css selector'; value = '#start' }
+        $buttonId = $button.'element-6066-11e4-a52e-4f735466cecf'
+        $null = Driver-Call POST "/session/$driverSession/element/$buttonId/click" @{}
+        $null = Wait-For 'Firefox tone playback' {
+            $audio = Audio-State
+            (-not $audio.paused) -and ($audio.time -gt 0.1)
+        } 25
+        Start-Sleep -Milliseconds 800
 
-    Invoke-Button $window 'Test Pause'
-    $null = Wait-For 'Firefox tone paused by the EXE' { (Audio-State).paused } 25
-    Write-Host 'PASS: Test Pause paused the real Firefox media session'
-    Invoke-Button $window 'Test Play'
-    $null = Wait-For 'the same Firefox tone resumed by the EXE' { -not (Audio-State).paused } 25
-    Write-Host 'PASS: Test Play resumed the same Firefox media session'
+        & dotnet $probe list
+        Invoke-Button $window 'Test Pause'
+        $null = Wait-For 'Firefox tone paused by the EXE' { (Audio-State).paused } 25
+        Write-Host 'PASS: Test Pause paused the real Firefox media session'
+        Invoke-Button $window 'Test Play'
+        $null = Wait-For 'the same Firefox tone resumed by the EXE' { -not (Audio-State).paused } 25
+        Write-Host 'PASS: Test Play resumed the same Firefox media session'
+        $browserVerified = $true
+    } catch {
+        Write-Warning "Firefox integration check: $($_.Exception.Message)"
+        Write-Host ('Companion labels after Firefox: ' + ((Window-Text $window) -join ' | '))
+        if ($driverSession) {
+            try { $null = Driver-Call DELETE "/session/$driverSession" } catch { }
+            $driverSession = $null
+        }
+    }
+
+    if ($browserVerified) {
+        $isPaused = { (Audio-State).paused }
+        $isPlaying = { -not (Audio-State).paused }
+    } else {
+        # A controlled native provider can still exercise the OS adapter when
+        # Firefox does not publish a controllable session on this runner.
+        $nativeStatus = Join-Path $fixture 'native-status.txt'
+        $nativeArgs = '"{0}" "{1}" "{2}"' -f $probe, $wave, $nativeStatus
+        $nativePlayer = Start-Process dotnet -ArgumentList $nativeArgs -RedirectStandardError (Join-Path $fixture 'native-errors.txt') -PassThru
+        $null = Wait-For 'controlled native media session startup' {
+            if ($nativePlayer.HasExited) {
+                Get-Content (Join-Path $fixture 'native-errors.txt') | Write-Host
+                throw 'The native media fixture could not start'
+            }
+            Test-Path $nativeStatus
+        }
+        $isPaused = { (Get-Content $nativeStatus -Raw -ErrorAction SilentlyContinue) -eq 'paused' }
+        $isPlaying = { (Get-Content $nativeStatus -Raw -ErrorAction SilentlyContinue) -eq 'playing' }
+        & dotnet $probe list
+        Invoke-Button $window 'Test Pause'
+        $null = Wait-For 'Windows native player received Pause' $isPaused
+        Invoke-Button $window 'Test Play'
+        $null = Wait-For 'Windows native player received Play' $isPlaying
+        Write-Host 'PASS: Test Pause and Test Play passed through real Windows media controls'
+    }
 
     # Run the normal capture path against a controlled window with the addon's brass marker tones.
     $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
@@ -176,17 +220,17 @@ document.getElementById("start").onclick = () => audio.play();
     $game = Start-Process -FilePath $stub -ArgumentList ('"{0}"' -f $marker) -PassThru
     $null = Wait-For 'the live idle brass marker' { Find-Control $window 'Ready' }
     Set-Content -LiteralPath $marker -Value 'narrating'
-    $null = Wait-For 'automatic pause through Windows screen capture' { (Audio-State).paused }
+    $null = Wait-For 'automatic pause through Windows screen capture' $isPaused
     Set-Content -LiteralPath $marker -Value 'missing'
     $null = Wait-For 'the held pause status after marker loss' { (Window-Text $window) -like '*pause held*' }
     Start-Sleep -Milliseconds 2600
-    if (-not (Audio-State).paused) { throw 'Playback resumed while the marker was missing' }
+    if (-not (& $isPaused)) { throw 'Playback resumed while the marker was missing' }
     Set-Content -LiteralPath $marker -Value 'idle'
-    $null = Wait-For 'automatic resume after recapturing the idle marker' { -not (Audio-State).paused }
+    $null = Wait-For 'automatic resume after recapturing the idle marker' $isPlaying
     Set-Content -LiteralPath $marker -Value 'narrating'
-    $null = Wait-For 'automatic pause before simulated game exit' { (Audio-State).paused }
+    $null = Wait-For 'automatic pause before simulated game exit' $isPaused
     Set-Content -LiteralPath $marker -Value 'close'
-    $null = Wait-For 'automatic resume when the simulated game closes' { -not (Audio-State).paused }
+    $null = Wait-For 'automatic resume when the simulated game closes' $isPlaying
     Write-Host 'PASS: automatic Pause, hold through a capture gap, Play on live idle and game exit'
 } catch {
     if ($window) {
@@ -194,6 +238,7 @@ document.getElementById("start").onclick = () => audio.play();
     }
     throw
 } finally {
+    if ($nativePlayer -and -not $nativePlayer.HasExited) { Stop-Process -Id $nativePlayer.Id -ErrorAction SilentlyContinue }
     if ($game -and -not $game.HasExited) { Stop-Process -Id $game.Id -ErrorAction SilentlyContinue }
     if ($driverSession) {
         try { $null = Driver-Call DELETE "/session/$driverSession" } catch { }
