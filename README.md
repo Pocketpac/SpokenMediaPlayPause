@@ -8,7 +8,7 @@ Get the **companion addon** for your WoW client and the **desktop helper** for y
 
 | Platform | Download | Requirements |
 | --- | --- | --- |
-| Windows | [Standalone x64 EXE](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/Spoken-Media-Pause-Windows-x64-Beta.exe) · [Windows setup](#windows-setup) | **Beta.** Targets Windows 11. Windows 10 compatibility is unverified. |
+| Windows | [Standalone x64 EXE](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/Spoken-Media-Pause-Windows-x64-Beta.exe) · [Windows setup](#windows-setup) | **Beta.** Tested on Windows 10 22H2 with Firefox and Chrome. |
 | Linux | [All Players AppImage](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage) · [Linux setup](#linux-setup) | x86-64 with glibc 2.35 or newer, including Ubuntu 22.04 |
 
 On both platforms, use WoW in **Windowed** or **Windowed (Fullscreen)** mode. Exclusive fullscreen may make the in-game marker unreadable.
@@ -98,8 +98,8 @@ The desktop companions check the public GitHub release in the background at star
 
 ## Verification
 
-- **Linux 0.5.3** passed the Ubuntu 22.04 library check, X11 capture and playback recovery with a simulated WoW window, both playback buttons, and the GitHub update check. Earlier builds were tested on XWayland and KDE Wayland window and monitor sharing.
-- **Windows Beta 8** passed fallback setting persistence, keyboard playback with a native Windows player, and automatic key presses with a simulated WoW window on a Windows Server 2025 x64 runner. [Windows runner results](https://github.com/Pocketpac/SpokenMediaPlayPause/actions/runs/44668661133/job/136064070830)
+- **Linux 0.5.4** uses the same Ubuntu 22.04 runtime and capture code as 0.5.3. Version 0.5.3 passed X11 capture and playback recovery with a simulated WoW window, both playback buttons, and the GitHub update check. Earlier builds were tested on XWayland and KDE Wayland window and monitor sharing.
+- **Windows** was tested on a Windows 10 22H2 x64 VM. **Test Pause** and **Test Play** worked in Firefox and Chrome with both control modes. The compact window was tested in Chrome, including both playback modes and **Check for updates**. Beta 8 also passed fallback setting persistence and automatic key presses with a simulated WoW window on a Windows Server 2025 x64 runner. [Windows runner results](https://github.com/Pocketpac/SpokenMediaPlayPause/actions/runs/44668661133/job/136064070830)
 - **Addon 0.5.2** was checked with simulated WoW APIs. Both companions passed rendered brass and classic marker checks. Live Classic and legacy gameplay remain untested.
 
 [SHA-256 checksums](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SHA256SUMS-all.txt) · [Linux build instructions](packaging/README.md) · [Windows build instructions](windows/README.md#build-from-source)

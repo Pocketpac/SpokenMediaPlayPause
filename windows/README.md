@@ -2,11 +2,11 @@
 
 ## Use the beta
 
-The standalone x64 executable is a **Beta** targeting Windows 11. Windows 10 compatibility is unverified. Follow the [Windows setup guide](../README.md#windows-setup) and [playback test](../README.md#test-playback-and-automatic-pause) on the main page.
+The standalone x64 executable is a **Beta** built with the Windows 11 SDK. On a Windows 10 22H2 x64 VM, **Test Pause** and **Test Play** worked in Firefox and Chrome with both the default Windows controls and the keyboard fallback. Follow the [Windows setup guide](../README.md#windows-setup) and [playback test](../README.md#test-playback-and-automatic-pause) on the main page.
 
 The helper keeps its screen capture in memory. When you close the helper, it attempts to resume any sessions it still owns that have the same media selected and paused.
 
-Use **Check for updates** in the status window for an immediate check. Daily background checks use the same combined GitHub release. **View release** opens the downloads when a newer Windows build is available.
+The status window keeps **Test Pause**, **Test Play**, and **Check for updates** on one row and grows to fit feedback. Use **Check for updates** for an immediate check. Daily background checks use the same combined GitHub release. **View release** opens the downloads when a newer Windows build is available.
 
 ### Keyboard media key fallback
 

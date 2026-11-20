@@ -6,6 +6,7 @@ namespace SpokenMediaPause.Windows;
 /// <summary>Shows capture status and exposes manual playback tests even before WoW opens.</summary>
 internal sealed class MainWindow : Form
 {
+    private const int StatusTextWidth = 304;
     private readonly Stopwatch clock = Stopwatch.StartNew();
     private readonly WowWindowCapture capture = new();
     private readonly Narration narration = new();
@@ -14,51 +15,53 @@ internal sealed class MainWindow : Form
     private readonly System.Windows.Forms.Timer poll = new() { Interval = 80 };
     private readonly ReleaseUpdates updates = new();
     private readonly System.Windows.Forms.Timer dailyUpdate = new() { Interval = 86_400_000 };
-    private readonly Label status = new() { AutoSize = true, Text = "Waiting for WoW" };
-    private readonly Label feedback = new() { AutoSize = true, MaximumSize = new(340, 0) };
-    private readonly Label recovery = new() { AutoSize = true, MaximumSize = new(340, 0), Visible = false };
+    private readonly Label status = new() { AutoSize = true, MaximumSize = new(StatusTextWidth, 0), Text = "Waiting for WoW" };
+    private readonly Label feedback = new() { AutoSize = true, MaximumSize = new(StatusTextWidth, 0), Visible = false };
+    private readonly Label recovery = new() { AutoSize = true, MaximumSize = new(StatusTextWidth, 0), Visible = false };
     private readonly Button pause = new() { AutoSize = true, Text = "Test Pause" };
     private readonly Button play = new() { AutoSize = true, Text = "Test Play" };
     private readonly CheckBox fallback = new() { AutoSize = true, Text = "Use keyboard media key (fallback)" };
     private readonly Label fallbackHelp = new()
     {
-        AutoSize = true, MaximumSize = new(340, 0),
+        AutoSize = true, MaximumSize = new(StatusTextWidth, 0),
         Text = "Windows chooses which player receives Play/Pause. Start with media playing."
     };
     private readonly Button checkUpdate = new() { AutoSize = true, Text = "Check for updates" };
     private readonly LinkLabel releaseLink = new() { AutoSize = true, Text = "View release", Visible = false };
-    private readonly Label updateFeedback = new() { AutoSize = true, MaximumSize = new(340, 0), Visible = false };
+    private readonly Label updateFeedback = new() { AutoSize = true, MaximumSize = new(StatusTextWidth, 0), Visible = false };
     private string? newerTag;
     private bool closing, allowClose;
 
     public MainWindow()
     {
-        Text = "Spoken Media Pause — Windows Beta";
+        Text = "Spoken Media Pause (Beta)";
         AutoScaleMode = AutoScaleMode.Dpi;
-        ClientSize = new(390, 330);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
+        // Keep a stable width for wrapped messages and fit the height to the visible controls.
+        AutoSize = true;
+        AutoSizeMode = AutoSizeMode.GrowAndShrink;
         var layout = new FlowLayoutPanel
         {
-            Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false,
-            Padding = new(14), AutoScroll = true
+            AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            FlowDirection = FlowDirection.TopDown, WrapContents = false,
+            MinimumSize = new(330, 0), Padding = new(10, 8, 10, 8)
         };
         layout.Controls.Add(status);
-        layout.Controls.Add(new Label { AutoSize = true, MaximumSize = new(340, 0),
+        layout.Controls.Add(new Label { AutoSize = true, MaximumSize = new(StatusTextWidth, 0),
             Text = "Keep WoW’s top-left corner visible. Click the in-game marker to toggle auto-pause." });
         fallback.Checked = PlaybackSettings.LoadFallback();
         fallbackHelp.Visible = fallback.Checked;
         layout.Controls.Add(fallback);
         layout.Controls.Add(fallbackHelp);
-        var buttons = new FlowLayoutPanel { AutoSize = true, Margin = Padding.Empty };
-        buttons.Controls.AddRange([pause, play]);
+        // Keep the three actions on one row. Optional messages and the release link can grow below it.
+        var buttons = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
+        buttons.Controls.AddRange([pause, play, checkUpdate]);
         layout.Controls.Add(buttons);
         layout.Controls.Add(feedback);
         layout.Controls.Add(recovery);
-        var updateControls = new FlowLayoutPanel { AutoSize = true, Margin = Padding.Empty };
-        updateControls.Controls.AddRange([checkUpdate, releaseLink]);
-        layout.Controls.Add(updateControls);
         layout.Controls.Add(updateFeedback);
+        layout.Controls.Add(releaseLink);
         Controls.Add(layout);
         fallback.CheckedChanged += (_, _) => ChangePlaybackMode();
         pause.Click += async (_, _) => await TestAsync(true);
@@ -123,7 +126,14 @@ internal sealed class MainWindow : Form
     private void ChangePlaybackMode()
     {
         fallbackHelp.Visible = fallback.Checked;
-        feedback.Text = PlaybackSettings.SaveFallback(fallback.Checked) ? "" : "Couldn’t save the playback setting.";
+        SetPlaybackFeedback(PlaybackSettings.SaveFallback(fallback.Checked) ? "" : "Couldn’t save the playback setting.");
+    }
+
+    /// <summary>Show playback feedback only while it has text, so it takes no space on startup or after a mode change.</summary>
+    private void SetPlaybackFeedback(string message)
+    {
+        feedback.Text = message;
+        feedback.Visible = message.Length != 0;
     }
 
     /// <summary>Display GitHub results independently of playback and prevent overlapping checks.</summary>
@@ -169,17 +179,17 @@ internal sealed class MainWindow : Form
     {
         if (fallback.Checked)
         {
-            feedback.Text = mediaKey.Test(shouldPause);
+            SetPlaybackFeedback(mediaKey.Test(shouldPause));
             UpdateButtons();
             return;
         }
         var completion = media.TestAsync(shouldPause);
-        feedback.Text = shouldPause ? "Sending Pause…" : "Sending Play…";
+        SetPlaybackFeedback(shouldPause ? "Sending Pause…" : "Sending Play…");
         UpdateButtons();
         string result = await completion;
         if (!closing)
         {
-            feedback.Text = result;
+            SetPlaybackFeedback(result);
             UpdateButtons();
         }
     }
