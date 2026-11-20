@@ -1,0 +1,36 @@
+name: Verify published Windows EXE with Firefox
+run-name: Beta 8 Firefox playback in both Windows control modes
+
+# This isolated branch tests the public release binary without changing the release.
+on:
+  push:
+    branches: [test/windows-firefox]
+
+permissions:
+  contents: read
+
+jobs:
+  firefox:
+    runs-on: windows-2025
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Fetch and verify the published Beta 8 executable
+        shell: pwsh
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'Spoken-Media-Pause-Windows-x64-Beta.exe'
+          $url = 'https://github.com/Pocketpac/SpokenMediaPlayPause/releases/download/v0.5.3/Spoken-Media-Pause-Windows-x64-Beta.exe'
+          $sha = 'd41bf368dcbb76aaf171b7d5b0e8f7dafeada4a85ffb7bee8835b0579092d62a'
+          curl.exe --fail --silent --show-error --location --output $exe $url
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash $exe -Algorithm SHA256).Hash -ne $sha) {
+            throw 'The release download did not match the published Beta 8 checksum'
+          }
+          Write-Host "Verified exact Beta 8 EXE: $sha"
+          "SPOKEN_TEST_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Verify Firefox responds to Windows media controls and keyboard fallback
+        shell: powershell
+        run: .\tests\windows\hosted-firefox.ps1 -Exe $env:SPOKEN_TEST_EXE
