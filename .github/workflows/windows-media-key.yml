@@ -1,0 +1,50 @@
+name: Verify Windows media-key fallback
+run-name: Windows Beta 8 keyboard fallback checks
+
+# The isolated test branch owns this short-lived workflow.
+on:
+  push:
+    branches: [test/windows-media-key]
+  workflow_dispatch:
+
+permissions:
+  # GitHub requires push access to list an unpublished release. The token is
+  # passed only to the asset retrieval step, and checkout leaves no credentials.
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Download and verify the exact staged EXE
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Retrieve the test asset inside GitHub. The expected hash is from the local Beta 8 build.
+          $sha = 'd41bf368dcbb76aaf171b7d5b0e8f7dafeada4a85ffb7bee8835b0579092d62a'
+          $releases = gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Could not read releases' }
+          $asset = $releases |
+            Where-Object { $_.draft -and $_.name -eq 'Windows Beta 6 validation — internal draft' } |
+            ForEach-Object { $_.assets } |
+            Where-Object { $_.name -eq 'Spoken-Media-Pause-Windows-x64-Beta8.exe' -and $_.digest -eq "sha256:$sha" } |
+            Select-Object -First 1
+          if (-not $asset) { throw 'The runner token could not find the private Beta 8 draft asset' }
+          $exe = Join-Path $env:RUNNER_TEMP 'Spoken-Media-Pause-Windows-x64-Beta.exe'
+          curl.exe --fail --silent --show-error --location -o "$exe" -H "Authorization: Bearer $env:GH_TOKEN" -H 'Accept: application/octet-stream' "$($asset.url)"
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash $exe -Algorithm SHA256).Hash -ne $sha) {
+            throw 'The Windows binary did not match the expected Beta 8 SHA-256'
+          }
+          Write-Host "PASS: exact Beta 8 build, SHA-256 $sha"
+          "SPOKEN_TEST_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Check saved settings and native Windows Play/Pause input
+        shell: powershell
+        run: .\tests\windows\hosted-media-key.ps1 -Exe $env:SPOKEN_TEST_EXE
