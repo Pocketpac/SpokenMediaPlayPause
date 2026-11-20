@@ -1,6 +1,6 @@
 # Spoken Media Pause
 
-<img src="assets/spoken-media-pause.png" alt="Overlapping Play and Pause logo" width="112">
+<img src="assets/brass-badge-logo.png" alt="Spoken Media Pause brass badge logo with glowing amber bars" width="112">
 
 Pause your music, video, or audiobook while [Spoken](https://www.curseforge.com/wow/addons/spoken) narrates in World of Warcraft. The desktop helper sends separate Pause and Play commands to compatible players and resumes only the same items it paused.
 
