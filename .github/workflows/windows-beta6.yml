@@ -1,5 +1,5 @@
-name: Verify Windows Beta 6
-run-name: Windows Beta 6 desktop and Firefox checks
+name: Verify Windows Beta 7
+run-name: Windows Beta 7 playback and capture checks
 
 # The isolated test branch owns this short-lived workflow.
 on:
@@ -14,7 +14,12 @@ permissions:
 
 jobs:
   windows:
-    runs-on: windows-2025
+    # The desktop job runs the same x64 file under Windows 11 ARM emulation.
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [windows-2025, windows-11-arm]
+    runs-on: ${{ matrix.image }}
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
@@ -27,22 +32,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          # Retrieve the test asset inside GitHub. The expected hash is from the local Beta 6 build.
-          $sha = '5468acb9e5311f843089bf9d8ea3792cae509e4907728680199b7d0403f135a2'
+          # Retrieve the test asset inside GitHub. The expected hash is from the local Beta 7 build.
+          $sha = '0e3b301ee6c675ec9a17af7cb705feabed63adc620bf2208d1ae4b88a81c3d3e'
           $releases = gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0) { throw 'Could not read releases' }
           $asset = $releases |
             Where-Object { $_.draft -and $_.name -eq 'Windows Beta 6 validation — internal draft' } |
             ForEach-Object { $_.assets } |
-            Where-Object { $_.name -eq 'Spoken-Media-Pause-Windows-x64-Beta.exe' -and $_.digest -eq "sha256:$sha" } |
+            Where-Object { $_.name -eq 'Spoken-Media-Pause-Windows-x64-Beta7.exe' -and $_.digest -eq "sha256:$sha" } |
             Select-Object -First 1
-          if (-not $asset) { throw 'The runner token could not find the private Beta 6 draft asset' }
+          if (-not $asset) { throw 'The runner token could not find the private Beta 7 draft asset' }
           $exe = Join-Path $env:RUNNER_TEMP 'Spoken-Media-Pause-Windows-x64-Beta.exe'
           curl.exe --fail --silent --show-error --location -o "$exe" -H "Authorization: Bearer $env:GH_TOKEN" -H 'Accept: application/octet-stream' "$($asset.url)"
           if ($LASTEXITCODE -ne 0 -or (Get-FileHash $exe -Algorithm SHA256).Hash -ne $sha) {
-            throw 'The Windows binary did not match the expected Beta 6 SHA-256'
+            throw 'The Windows binary did not match the expected Beta 7 SHA-256'
           }
-          Write-Host "PASS: exact Beta 6 build, SHA-256 $sha"
+          Write-Host "PASS: exact Beta 7 build, SHA-256 $sha"
           "SPOKEN_TEST_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Launch the EXE and test the Windows UI and media controls
