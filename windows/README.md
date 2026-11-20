@@ -1,4 +1,4 @@
-# Spoken Media Pause for Windows
+# Spoken Media Pause Companion for Windows
 
 ## Use the beta
 
@@ -27,4 +27,4 @@ dotnet publish windows/SpokenMediaPause.Windows.csproj -c Release -o dist/window
 dotnet run --project tests/windows/SpokenMediaPause.Windows.Checks.csproj -c Release
 ```
 
-The publish command writes the standalone x64 beta executable to `dist/windows/`. The checks exercise the marker decoder and pause ownership against synthetic frames and media sessions.
+The publish command writes `Spoken-Media-Pause-Companion-Windows-x64.exe` to `dist/windows/`. The checks exercise the marker decoder and pause ownership against synthetic frames and media sessions.

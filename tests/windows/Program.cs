@@ -295,14 +295,14 @@ static class Checks
         Check(repeated.PlayCalls == 4 && repeated.Status == Playback.Playing, "Closing can release a retained pause.");
     }
 
-    /// <summary>Check numeric versions, daily caching, platform assets, and a manual offline result.</summary>
+    /// <summary>Check numeric versions, daily caching, both Windows asset names, and offline results.</summary>
     static async Task CheckUpdatesAsync()
     {
         string directory = Path.Combine(Path.GetTempPath(), "spoken-update-" + Guid.NewGuid());
         string cache = Path.Combine(directory, "release-check.json");
         int requests = 0;
         var now = new DateTimeOffset(2026, 11, 20, 0, 0, 0, TimeSpan.Zero);
-        string tag = "addon-v0.5.10", asset = "Spoken-Media-Pause-Windows-x64-Beta.exe";
+        string tag = "addon-v0.5.10", asset = "Spoken-Media-Pause-Companion-Windows-x64.exe";
         bool offline = false;
         Task<string> Fetch()
         {
@@ -320,12 +320,17 @@ static class Checks
             tag = "v0.5.9";
             Check(await updater.CheckAsync(true) == new UpdateResult(false, null) && requests == 2,
                 "Manual checks bypass the cache.");
-            asset = "Linux.AppImage";
+            tag = "v0.5.10";
+            asset = "Spoken-Media-Pause-Companion-Linux-x64.AppImage";
             now = now.AddDays(1);
             Check(await updater.CheckAsync(false) == new UpdateResult(false, null) && requests == 3,
                 "A release without a Windows download should not advertise an update.");
+            asset = "Spoken-Media-Pause-Windows-x64-Beta.exe";
+            Check(await updater.CheckAsync(true) == new UpdateResult(false, tag),
+                "An older Windows download name should still advertise an update.");
             offline = true;
-            Check(await updater.CheckAsync(true) == new UpdateResult(true, null), "An offline manual check reports failure.");
+            Check(await updater.CheckAsync(true) == new UpdateResult(true, tag),
+                "An offline manual check reports failure and keeps the last known update.");
         }
         finally { Directory.Delete(directory, recursive: true); }
     }

@@ -13,7 +13,11 @@ from gi.repository import GLib
 REPOSITORY = "Pocketpac/SpokenMediaPlayPause"
 RELEASES = f"https://github.com/{REPOSITORY}/releases/tag/"
 API = f"https://api.github.com/repos/{REPOSITORY}/releases/latest"
-APPIMAGE = "Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage"
+# Recognize the original filename so the renamed companion can also read older releases.
+APPIMAGES = (
+    "Spoken-Media-Pause-Companion-Linux-x64.AppImage",
+    "Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage",
+)
 TAG = re.compile(r"(?:addon-)?v(\d{1,9})\.(\d{1,9})\.(\d{1,9})", re.ASCII)
 DAY = 24 * 60 * 60
 MAX_RESPONSE = 1_000_000
@@ -37,7 +41,7 @@ def latest_tag():
     tag = release["tag_name"]
     if release["draft"] or release["prerelease"] or version(tag) is None:
         raise ValueError("Invalid full release tag")
-    return tag if any(item["name"] == APPIMAGE and item["state"] == "uploaded"
+    return tag if any(item["name"] in APPIMAGES and item["state"] == "uploaded"
                       for item in release["assets"]) else None
 
 

@@ -16,9 +16,14 @@ The build uses Jammy's Python, GTK, and system packages and builds GStreamer and
 
 ## Release files
 
-Put the All Players AppImage, the Windows x64 EXE, and all companion addon ZIPs in the same GitHub release. Mark it as Latest and label the Windows download as Beta. List direct download links so users can choose a desktop helper and the ZIP for their WoW client.
+Put the Linux x64 AppImage, the Windows x64 EXE, and all companion addon ZIPs in the same GitHub release. Mark it as Latest and label the Windows download as Beta. Use **Spoken Media Pause Companion** for both desktop downloads and list direct links to the current filenames.
 
-Set [the shared release version](../desktop/release-version.txt) before building both companions. Use a matching GitHub release tag such as `v0.5.3` or `addon-v0.5.3`. The update check uses the combined release version, independent of the WoW addon and Windows beta version numbers. Keep the canonical asset names so both companions can identify their downloads.
+Set [the shared release version](../desktop/release-version.txt) before building both companions. Use a matching GitHub release tag such as `v0.5.5` or `addon-v0.5.5`. The update check uses the combined release version, independent of the WoW addon and Windows beta version numbers.
+
+The update check in 0.5.4 and earlier looks for the exact filenames below. To keep those builds receiving update alerts, include copies under the former names alongside the new downloads and link to the new downloads in the release notes. The renamed companions accept either set of names.
+
+- `Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage`
+- `Spoken-Media-Pause-Windows-x64-Beta.exe`
 
 Stage the two desktop builds, the project license, and the Windows runtime notices in a clean `dist/release` directory. See the [Windows build instructions](../windows/README.md#build-from-source) for the EXE. The addon packager reads the version from the current WoW TOCs and generates both legacy manifests from the same source.
 
@@ -40,6 +45,6 @@ The release's static launcher comes from [AppImage type2-runtime commit fedfad5]
 
 ```sh
 mkdir -p source-cache
-image=Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage
+image=Spoken-Media-Pause-Companion-Linux-x64.AppImage
 head -c "$(./"$image" --appimage-offset)" -- "$image" > source-cache/runtime-x86_64
 ```

@@ -11,7 +11,9 @@ internal sealed class ReleaseUpdates
 {
     internal const string ReleasePage = "https://github.com/Pocketpac/SpokenMediaPlayPause/releases/tag/";
     private const string Api = "https://api.github.com/repos/Pocketpac/SpokenMediaPlayPause/releases/latest";
-    private const string Executable = "Spoken-Media-Pause-Windows-x64-Beta.exe";
+    private const string Executable = "Spoken-Media-Pause-Companion-Windows-x64.exe";
+    // Recognize releases uploaded under the filename used before the companion rename.
+    private const string LegacyExecutable = "Spoken-Media-Pause-Windows-x64-Beta.exe";
     private static readonly Regex TagFormat = new(@"\A(?:addon-)?v([0-9]{1,9}\.[0-9]{1,9}\.[0-9]{1,9})\z");
     private static readonly HttpClient Client = new()
     {
@@ -57,7 +59,7 @@ internal sealed class ReleaseUpdates
             release.GetProperty("prerelease").GetBoolean())
             throw new JsonException("Invalid full release tag");
         return release.GetProperty("assets").EnumerateArray().Any(asset =>
-            asset.GetProperty("name").GetString() == Executable &&
+            (asset.GetProperty("name").GetString() is Executable or LegacyExecutable) &&
             asset.GetProperty("state").GetString() == "uploaded") ? tag : null;
     }
 

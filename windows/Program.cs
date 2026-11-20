@@ -9,7 +9,7 @@ internal static class Program
         using var singleton = new Mutex(true, @"Local\SpokenMediaPause.Windows", out bool first);
         if (!first)
         {
-            MessageBox.Show("Spoken Media Pause is already running.", "Spoken Media Pause Beta");
+            MessageBox.Show($"{Application.ProductName} is already running.", Application.ProductName);
             return;
         }
         try

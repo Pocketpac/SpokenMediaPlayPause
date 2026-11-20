@@ -31,6 +31,8 @@ except ImportError:
     display = None
 
 
+# The public name can change independently of the stable D-Bus ownership name.
+APP_NAME = "Spoken Media Pause Companion"
 PORTAL = "org.freedesktop.portal.Desktop"
 PORTAL_PATH = "/org/freedesktop/portal/desktop"
 SCREENCAST = "org.freedesktop.portal.ScreenCast"
@@ -706,7 +708,7 @@ class StatusWindow:
         if not Gtk.init_check():
             raise RuntimeError("Could not open the status window on this desktop.")
 
-        self.window = Gtk.Window(title="Spoken Media Pause")
+        self.window = Gtk.Window(title=APP_NAME)
         self.window.set_default_size(310, -1)
         self.window.set_resizable(False)
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -875,7 +877,7 @@ def main():
     except (GLib.Error, KeyError, RuntimeError, ValueError, OSError) as error:
         if status is None:
             raise
-        print(f"Spoken Media Pause: {error}", file=sys.stderr)
+        print(f"{APP_NAME}: {error}", file=sys.stderr)
         status.show_error(error)
     finally:
         if status is not None:
@@ -889,7 +891,7 @@ def run_capture(args, status):
     (name_status,) = call(bus, DBUS, DBUS_PATH, DBUS, "RequestName",
                           GLib.Variant("(su)", ("io.github.SpokenMediaPause", 4)))
     if name_status != 1:
-        raise RuntimeError("Spoken Media Pause is already running.")
+        raise RuntimeError(f"{APP_NAME} is already running.")
 
     portal = ScreenCast(bus)
     player = MediaPlayers(bus, status.show_recovery if status is not None else None)
@@ -1053,4 +1055,4 @@ if __name__ == "__main__":
     try:
         main()
     except (GLib.Error, KeyError, RuntimeError, ValueError, OSError) as error:
-        sys.exit(f"Spoken Media Pause: {error}")
+        sys.exit(f"{APP_NAME}: {error}")

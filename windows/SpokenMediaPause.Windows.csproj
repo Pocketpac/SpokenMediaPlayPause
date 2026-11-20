@@ -8,11 +8,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <AssemblyName>Spoken-Media-Pause-Windows-x64-Beta</AssemblyName>
+    <AssemblyName>Spoken-Media-Pause-Companion-Windows-x64</AssemblyName>
     <!-- Use the multiresolution logo in Explorer and embed it for the status window. -->
     <ApplicationIcon>spoken-media-pause.ico</ApplicationIcon>
-    <Product>Spoken Media Pause for Windows (Beta)</Product>
-    <Version>0.2.0-beta.9</Version>
+    <!-- Use the companion name in Explorer, the status window, and the duplicate-instance dialog. -->
+    <Product>Spoken Media Pause Companion</Product>
+    <AssemblyTitle>$(Product)</AssemblyTitle>
+    <Version>0.2.0-beta.10</Version>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>

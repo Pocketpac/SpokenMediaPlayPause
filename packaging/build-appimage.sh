@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build and audit the All Players AppImage for Ubuntu 22.04. The optional
+# Build and audit the Linux companion AppImage for Ubuntu 22.04. The optional
 # argument chooses the output directory for the audited executable.
 set -euo pipefail
 
@@ -11,7 +11,7 @@ fi
 destination=${1:-"$repo/dist"}
 mkdir -p -- "$destination"
 destination=$(realpath "$destination")
-artifact=Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage
+artifact=Spoken-Media-Pause-Companion-Linux-x64.AppImage
 if [[ -e "$destination/$artifact" ]]; then
     printf 'File already exists at %s\n' "$destination/$artifact" >&2
     exit 1

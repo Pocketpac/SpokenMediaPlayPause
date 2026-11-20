@@ -6,7 +6,7 @@ namespace SpokenMediaPause.Windows;
 /// <summary>Shows capture status and exposes manual playback tests even before WoW opens.</summary>
 internal sealed class MainWindow : Form
 {
-    private const int StatusTextWidth = 304;
+    private const int StatusTextWidth = 324;
     private readonly Stopwatch clock = Stopwatch.StartNew();
     private readonly WowWindowCapture capture = new();
     private readonly Narration narration = new();
@@ -34,18 +34,18 @@ internal sealed class MainWindow : Form
 
     public MainWindow()
     {
-        Text = "Spoken Media Pause (Beta)";
+        Text = Application.ProductName;
         AutoScaleMode = AutoScaleMode.Dpi;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
-        // Keep a stable width for wrapped messages and fit the height to the visible controls.
+        // Leave room for the full companion title and fit the height to the visible controls.
         AutoSize = true;
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
         var layout = new FlowLayoutPanel
         {
             AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
             FlowDirection = FlowDirection.TopDown, WrapContents = false,
-            MinimumSize = new(330, 0), Padding = new(10, 8, 10, 8)
+            MinimumSize = new(StatusTextWidth + 26, 0), Padding = new(10, 8, 10, 8)
         };
         layout.Controls.Add(status);
         layout.Controls.Add(new Label { AutoSize = true, MaximumSize = new(StatusTextWidth, 0),

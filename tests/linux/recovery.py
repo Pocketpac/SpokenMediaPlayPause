@@ -133,8 +133,8 @@ def check_playback():
 
 
 def check_updates():
-    """Check version ordering, daily caching, and failure while offline."""
-    tag, asset = "addon-v0.5.10", updates.APPIMAGE
+    """Check release filenames, version ordering, daily caching, and offline results."""
+    tag, asset = "addon-v0.5.10", "Spoken-Media-Pause-Companion-Linux-x64.AppImage"
     now = 1_800_000_000
     requests = 0
     offline = False
@@ -162,11 +162,14 @@ def check_updates():
         assert result(False) == (False, tag) and requests == 1
         tag = "v0.5.9"
         assert result(True) == (False, None) and requests == 2
-        asset = "Windows.exe"
+        tag, asset = "v0.5.10", "Spoken-Media-Pause-Companion-Windows-x64.exe"
         now += updates.DAY
         assert result(False) == (False, None) and requests == 3
+        asset = "Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage"
+        assert result(True) == (False, tag)
         offline = True
-        assert result(True) == (True, None)
+        # An offline check reports failure and keeps the last known update.
+        assert result(True) == (True, tag)
 
 
 if __name__ == "__main__":

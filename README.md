@@ -4,12 +4,12 @@
 
 Pause your music, video, or audiobook while [Spoken](https://www.curseforge.com/wow/addons/spoken) narrates in World of Warcraft. By default, the desktop helper sends separate Pause and Play commands and resumes only the items it paused.
 
-Get the **companion addon** for your WoW client and the **desktop helper** for your operating system from the [latest release](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest).
+Get the **companion addon** for your WoW client and the **Spoken Media Pause Companion** desktop app for your operating system from the [latest release](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest).
 
 | Platform | Download | Requirements |
 | --- | --- | --- |
-| Windows | [Standalone x64 EXE](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/Spoken-Media-Pause-Windows-x64-Beta.exe) · [Windows setup](#windows-setup) | **Beta.** Tested on Windows 10 22H2 with Firefox and Chrome. |
-| Linux | [All Players AppImage](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage) · [Linux setup](#linux-setup) | x86-64 with glibc 2.35 or newer, including Ubuntu 22.04 |
+| Windows | [Windows x64 EXE](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/Spoken-Media-Pause-Companion-Windows-x64.exe) · [Windows setup](#windows-setup) | **Beta.** Tested on Windows 10 22H2 with Firefox and Chrome. |
+| Linux | [Linux x64 AppImage](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/Spoken-Media-Pause-Companion-Linux-x64.AppImage) · [Linux setup](#linux-setup) | glibc 2.35 or newer, including Ubuntu 22.04 |
 
 On both platforms, use WoW in **Windowed** or **Windowed (Fullscreen)** mode. Exclusive fullscreen may make the in-game marker unreadable.
 
@@ -28,7 +28,7 @@ On both platforms, use WoW in **Windowed** or **Windowed (Fullscreen)** mode. Ex
 
 ## Windows setup
 
-1. Download and double-click `Spoken-Media-Pause-Windows-x64-Beta.exe`. The standalone download bundles the .NET runtime. The beta EXE is unsigned.
+1. Download and double-click `Spoken-Media-Pause-Companion-Windows-x64.exe`. The standalone download bundles the .NET runtime. The beta EXE is unsigned.
 2. Start WoW in **Windowed** or **Windowed (Fullscreen)** mode. Keep the top-left corner of the game visible, with the helper window out of the way. The helper finds WoW and reads up to 200 × 160 pixels from that corner.
 3. [Test playback and automatic pause](#test-playback-and-automatic-pause).
 
@@ -38,11 +38,11 @@ If the default mode has trouble with a player that responds to your keyboard’s
 
 ## Linux setup
 
-1. Download the All Players AppImage above. Open a terminal in the download folder, then make the AppImage executable and start it.
+1. Download the Linux x64 AppImage above. Open a terminal in the download folder, then make the AppImage executable and start it.
 
    ```sh
-   chmod +x Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage
-   ./Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage
+   chmod +x Spoken-Media-Pause-Companion-Linux-x64.AppImage
+   ./Spoken-Media-Pause-Companion-Linux-x64.AppImage
    ```
 
 2. Start WoW and choose the capture method that matches how the game is running.
@@ -57,13 +57,13 @@ If the default mode has trouble with a player that responds to your keyboard’s
 If the AppImage reports a FUSE or mount error, use this launch command after making it executable. [AppImage FUSE help](https://docs.appimage.org/user-guide/troubleshooting/fuse.html)
 
 ```sh
-./Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage --appimage-extract-and-run
+./Spoken-Media-Pause-Companion-Linux-x64.AppImage --appimage-extract-and-run
 ```
 
 If your Wayland picker offers only monitor sharing, close the helper and relaunch with `--display`. Select the monitor and position WoW so its marker is near that monitor's top-left corner.
 
 ```sh
-./Spoken-Media-Pause-All-Players-Ubuntu-22.04-x86_64.AppImage --display
+./Spoken-Media-Pause-Companion-Linux-x64.AppImage --display
 ```
 
 Linux playback works with players that expose Pause, Play, and track or item information through MPRIS. The helper uses D-Bus directly and needs neither `playerctl` nor a browser extension.

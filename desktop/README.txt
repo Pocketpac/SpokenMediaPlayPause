@@ -1,4 +1,4 @@
-Spoken Media Pause for Linux x86_64
+Spoken Media Pause Companion for Linux x86-64
 
 Make the AppImage executable and launch it from your desktop. Close the
 older desktop helper before launching the AppImage. This build works with
