@@ -30,31 +30,6 @@ function Invoke-Button($Window, [string]$Name) {
     $pattern.Invoke()
 }
 
-function New-Tone([string]$Path) {
-    # Generate a small loopable PCM sample. No external media or accounts are used.
-    $rate = 16000
-    # Firefox excludes clips of three seconds or less from desktop media controls.
-    $samples = 12 * $rate
-    $writer = [IO.BinaryWriter]::new([IO.File]::Create($Path))
-    try {
-        $writer.Write([Text.Encoding]::ASCII.GetBytes('RIFF'))
-        $writer.Write([int](36 + 2 * $samples))
-        $writer.Write([Text.Encoding]::ASCII.GetBytes('WAVEfmt '))
-        $writer.Write([int]16)
-        $writer.Write([int16]1)
-        $writer.Write([int16]1)
-        $writer.Write([int]$rate)
-        $writer.Write([int](2 * $rate))
-        $writer.Write([int16]2)
-        $writer.Write([int16]16)
-        $writer.Write([Text.Encoding]::ASCII.GetBytes('data'))
-        $writer.Write([int](2 * $samples))
-        for ($n = 0; $n -lt $samples; $n++) {
-            $writer.Write([int16](2000 * [Math]::Sin(2 * [Math]::PI * 440 * $n / $rate)))
-        }
-    } finally { $writer.Dispose() }
-}
-
 function Driver-Call([string]$Method, [string]$Route, $Data = $null) {
     # Send test commands to the runner's loopback WebDriver.
     $parameters = @{ Uri = "$driverUrl$Route"; Method = $Method; TimeoutSec = 12; UseBasicParsing = $true }
@@ -65,9 +40,9 @@ function Driver-Call([string]$Method, [string]$Route, $Data = $null) {
     (Invoke-RestMethod @parameters).value
 }
 
-function Audio-State {
+function Video-State {
     Driver-Call POST "/session/$driverSession/execute/sync" @{
-        script = 'const a = document.querySelector("audio"); return { paused: a.paused, time: a.currentTime, status: navigator.mediaSession.playbackState, pauses: window.pauses, plays: window.plays };'
+        script = 'const a = document.querySelector("video"); return { paused: a.paused, time: a.currentTime, status: navigator.mediaSession.playbackState, pauses: window.pauses, plays: window.plays };'
         args = @()
     }
 }
@@ -82,7 +57,7 @@ function Window-Text($Window) {
     }
 }
 
-# The page reports the actual HTML audio state and event counts. Only the app sends playback commands after startup.
+# The page reports the actual HTML video state and event counts. Only the app sends playback commands after startup.
 $fixture = Join-Path $env:RUNNER_TEMP 'spoken-firefox-check'
 $null = New-Item -ItemType Directory -Path $fixture
 $page = Join-Path $fixture 'player.html'
@@ -90,12 +65,12 @@ $page = Join-Path $fixture 'player.html'
 <!doctype html>
 <meta charset="utf-8">
 <title>Spoken Firefox verification</title>
-<audio src="tone.wav" loop></audio>
-<button id="start">Start tone</button>
+<video src="test-video.webm" width="320" height="240" loop controls></video>
+<button id="start">Play video</button>
 <script>
-const audio = document.querySelector("audio");
+const audio = document.querySelector("video");
 window.plays = window.pauses = 0;
-navigator.mediaSession.metadata = new MediaMetadata({title: "Spoken Firefox test tone", artist: "Spoken fixtures"});
+navigator.mediaSession.metadata = new MediaMetadata({title: "Spoken Firefox test video", artist: "Spoken fixtures"});
 navigator.mediaSession.setActionHandler("pause", () => audio.pause());
 navigator.mediaSession.setActionHandler("play", () => audio.play());
 audio.onplay = () => { window.plays++; navigator.mediaSession.playbackState = "playing"; };
@@ -107,7 +82,7 @@ document.querySelector("#start").onclick = () => audio.play();
 function Wait-Playback([string]$Description, [bool]$Paused, $Before) {
     # Require a new media event as well as the final paused or playing state.
     Wait-For $Description {
-        $now = Audio-State
+        $now = Video-State
         if ($now.paused -eq $Paused -and
             (($Paused -and $now.pauses -eq ($Before.pauses + 1)) -or
             (-not $Paused -and $now.plays -eq ($Before.plays + 1)))) { $now }
@@ -135,14 +110,23 @@ try {
     foreach ($name in 'AudioEndpointBuilder', 'Audiosrv') {
         if ((Get-Service $name).Status -ne 'Running') { Start-Service $name }
     }
-    New-Tone (Join-Path $fixture 'tone.wav')
+    # Use a normal VP8/Opus video with a generated tone and no external website dependencies.
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot '..\hosted-windows\test-video.webm') -Destination $fixture
+    $probeProject = Join-Path $PSScriptRoot '..\hosted-windows\MediaProbe\MediaProbe.csproj'
+    $probeOut = Join-Path $fixture 'probe'
+    & dotnet build $probeProject -c Release -o $probeOut --nologo
+    if ($LASTEXITCODE -ne 0) { throw 'Could not build the Windows media session diagnostic' }
+    $probe = Join-Path $probeOut 'MediaProbe.dll' 
 
     # UI Automation exercises the real compiled companion, and WebDriver only observes the page after initial playback.
     $driverExe = Join-Path $env:GECKOWEBDRIVER 'geckodriver.exe'
     $driver = Start-Process -FilePath $driverExe -ArgumentList '--host 127.0.0.1 --port 4455' -PassThru
     $null = Wait-For 'geckodriver startup' { try { (Driver-Call GET '/status').ready } catch { } }
     $session = Driver-Call POST '/session' @{
-        capabilities = @{ alwaysMatch = @{ browserName = 'firefox' } }
+        capabilities = @{ alwaysMatch = @{
+            browserName = 'firefox'
+            'moz:firefoxOptions' = @{ prefs = @{ 'media.hardwaremediakeys.enabled' = $true } }
+        } }
     }
     $driverSession = $session.sessionId
     Write-Host "Firefox $($session.capabilities.browserVersion), Windows build $([Environment]::OSVersion.Version)"
@@ -177,15 +161,18 @@ try {
             $button = Driver-Call POST "/session/$driverSession/element" @{ using = 'css selector'; value = '#start' }
             $buttonId = $button.'element-6066-11e4-a52e-4f735466cecf'
             $null = Driver-Call POST "/session/$driverSession/element/$buttonId/click" @{}
-            $playing = Wait-For 'Firefox audio clock running' {
-                $now = Audio-State
+            $playing = Wait-For 'Firefox video clock running' {
+                $now = Video-State
                 if (-not $now.paused -and $now.time -gt 1) { $now }
             }
-            Write-Host "Firefox audio playing before $mode (position $($playing.time))."
+            Write-Host "Firefox video playing before $mode (position $($playing.time))."
+            # List what Firefox registered with Windows. This observer never creates or commands a session.
+            & dotnet $probe list
+            if ($LASTEXITCODE -ne 0) { Write-Warning 'The Windows media session diagnostic failed' }
             Invoke-Button $window 'Test Pause'
-            $paused = Wait-Playback 'Test Pause paused the Firefox audio' $true $playing
+            $paused = Wait-Playback 'Test Pause paused the Firefox video' $true $playing
             Invoke-Button $window 'Test Play'
-            $playing = Wait-Playback 'Test Play resumed the same Firefox audio' $false $paused
+            $playing = Wait-Playback 'Test Play resumed the same Firefox video' $false $paused
             Write-Host "PASS: $mode - Firefox paused and resumed with both test buttons."
             $summary += "- $mode - Firefox paused and resumed with both test buttons."
 
@@ -206,7 +193,7 @@ try {
             $summary += "- $detail"
             Write-Warning $detail
             if ($window) { Write-Host ('Companion labels: ' + ((Window-Text $window) -join ' | ')) }
-            try { Write-Host ('Firefox audio state: ' + (Audio-State | ConvertTo-Json -Compress)) } catch { }
+            try { Write-Host ('Firefox video state: ' + (Video-State | ConvertTo-Json -Compress)) } catch { }
         } finally {
             if ($game -and -not $game.HasExited) { Stop-Process -Id $game.Id }
             Close-Companion
@@ -217,7 +204,7 @@ try {
     if ($driver -and -not $driver.HasExited) { Stop-Process -Id $driver.Id }
     # Print only media registration and command traces from the synthetic browser profile.
     Get-ChildItem -Path "$env:MOZ_LOG_FILE*" -ErrorAction SilentlyContinue |
-        Select-String -Pattern 'SystemMediaTransportControls|WindowsSMTCProvider|HandleMediaKey' |
+        Select-String -Pattern 'SystemMediaTransportControls|WindowSMTCProvider|Set controller|Activate|HandleMediaKey|for monitoring media keys' |
         Select-Object -Last 35 | ForEach-Object { Write-Host $_.Line }
 }
 $summary | Out-File -LiteralPath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
