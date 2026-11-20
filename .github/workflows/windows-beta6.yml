@@ -8,7 +8,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  # GitHub requires push access to list an unpublished release. The token is
+  # passed only to the asset retrieval step, and checkout leaves no credentials.
+  contents: write
 
 jobs:
   windows:
