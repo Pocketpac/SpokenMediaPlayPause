@@ -183,33 +183,52 @@ internal sealed class MarkerDecoder
 internal sealed class Narration
 {
     private bool? heartbeat;
-    private long? heartbeatAt, idleAt;
+    private long? heartbeatAt, idleAt, lastReadable;
+    private bool awaitingTick = true;
     public bool Connected { get; private set; }
     public bool Disabled { get; private set; }
     public bool Active { get; private set; }
+    public bool CanPause { get; private set; }
 
     /// <summary>Clear the marker and release pause intent when the tracked game exits.</summary>
     public void Reset()
     {
         heartbeat = null;
-        heartbeatAt = idleAt = null;
-        Connected = Disabled = Active = false;
+        heartbeatAt = idleAt = lastReadable = null;
+        awaitingTick = true;
+        Connected = Disabled = Active = CanPause = false;
     }
 
     /// <summary>Honor live disable immediately and live idle after a 450 ms grace period.</summary>
     public void Update(MarkerReading? sample, long now)
     {
-        if (sample is { } reading && heartbeat != reading.Heartbeat)
+        // Missing capture or a stalled polling loop must see the clock
+        // advance again before a fresh playback command can be issued.
+        if (sample is null || lastReadable is long last && now - last > 550)
+            awaitingTick = true;
+        if (sample is { } reading)
         {
-            if (heartbeat.HasValue)
-                heartbeatAt = now;
-            heartbeat = reading.Heartbeat;
+            lastReadable = now;
+            if (heartbeat != reading.Heartbeat)
+            {
+                if (heartbeat.HasValue)
+                {
+                    heartbeatAt = now;
+                    awaitingTick = false;
+                }
+                heartbeat = reading.Heartbeat;
+            }
         }
 
-        Connected = heartbeatAt is long tick && now - tick <= 2400;
+        bool expired = heartbeatAt is not long tick || now - tick > 2400;
+        Connected = !expired && !awaitingTick;
+        CanPause = Connected && sample is { Mode: MarkerMode.Narrating };
         if (!Connected || sample is not { } state)
         {
-            idleAt = null;
+            // A short gap does not restart the grace period. The next fresh
+            // sample still needs to show idle before releasing.
+            if (expired)
+                idleAt = null;
             return;
         }
         Disabled = state.Mode == MarkerMode.Disabled;

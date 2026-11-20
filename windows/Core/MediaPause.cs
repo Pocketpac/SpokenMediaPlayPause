@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace SpokenMediaPause.Core;
 
 internal enum Playback { Other, Playing, Paused }
@@ -31,37 +33,62 @@ internal interface IPlaybackSessions
 }
 
 /// <summary>
-/// Serializes manual tests and automatic control on the desktop UI thread.
-/// Schedules at most one operation, with up to eight independent players in flight.
+/// Serializes playback operations on the UI context with up to eight independent sessions in flight.
 /// </summary>
 internal sealed class MediaPause(IPlaybackSessions broker)
 {
     private sealed record OwnedPause(IPlaybackSession Session, MediaItem Item, IPauseWatch Watch);
+    private sealed class CommandDeclined(string method) : Exception($"A media player didn’t respond to {method}.") { }
     private const int ParallelPlayers = 8;
+    private static readonly TimeSpan MarkerLease = TimeSpan.FromMilliseconds(550);
+    private static readonly int[] RetryDelays = [250, 700];
     private readonly Dictionary<nint, OwnedPause> automatic = [];
     private readonly Dictionary<nint, OwnedPause> manual = [];
     private Task work = Task.CompletedTask;
     private CancellationTokenSource? discovery;
+    private TaskCompletionSource? markerReady;
+    private long? markerChecked;
     private bool active, started, releaseRequested, closing;
+    private int retrying;
     public bool Busy => !work.IsCompleted;
-    public bool OwnsAutomaticPause => automatic.Count != 0;
+    public bool OwnsAutomaticPause => automatic.Values.Any(item => item.Watch.Current);
+    // A mode change must leave an existing pause with the controller that owns it.
+    public bool HasPendingPause => OwnsAutomaticPause || manual.Values.Any(item => item.Watch.Current);
     internal Task WhenIdle => work;
     public string? LastError { get; private set; }
+    public string? Recovery => retrying > 0 ? "Media player is slow. Retrying…" : LastError;
 
-    /// <summary>Requests a new narration state and cancels stale discovery without cancelling a Pause already sent.</summary>
-    public void SetActive(bool value)
+    // A queued retry may resume before the capture timer after a UI stall.
+    private bool CanPause => markerChecked is long checkedAt && Stopwatch.GetElapsedTime(checkedAt) <= MarkerLease;
+
+    /// <summary>Update pause intent and freshness, leaving already dispatched commands to finish.</summary>
+    public void SetActive(bool value, bool fresh = true)
     {
-        if (closing || active == value)
+        if (closing)
             return;
+        markerChecked = fresh ? Stopwatch.GetTimestamp() : null;
+        if (fresh && markerReady is { } ready)
+        {
+            markerReady = null;
+            ready.TrySetResult();
+        }
+        if (active == value)
+        {
+            if (!Busy && active && fresh && !started)
+                work = ReconcileAsync();
+            return;
+        }
         active = value;
-        if (!active && started)
+        if (!active && (started || automatic.Count != 0))
             releaseRequested = true;
+        else if (active && releaseRequested)
+            releaseRequested = started = false;
         discovery?.Cancel();
         if (!Busy)
             work = ReconcileAsync();
     }
 
-    /// <summary>Manually pauses eligible sessions, or releases only pauses owned by an earlier Test Pause.</summary>
+    /// <summary>Manually pause eligible sessions, or release pauses from a previous Test Pause.</summary>
     public Task<string> TestAsync(bool pause)
     {
         if (closing || active || Busy)
@@ -71,12 +98,12 @@ internal sealed class MediaPause(IPlaybackSessions broker)
         return request;
     }
 
-    /// <summary>Stops discovery and waits for in-flight commands and owned releases before the UI exits.</summary>
+    /// <summary>Wait for in-flight commands and one final release of any owned pauses.</summary>
     public Task CloseAsync()
     {
         closing = true;
         active = false;
-        releaseRequested |= started;
+        releaseRequested |= started || automatic.Count != 0;
         discovery?.Cancel();
         if (!Busy)
             work = ReconcileAsync();
@@ -92,7 +119,7 @@ internal sealed class MediaPause(IPlaybackSessions broker)
             LastError = null;
             int count = pause
                 ? (closing || active ? 0 : await PauseAsync(manual))
-                : await ReleaseAsync(manual);
+                : await ReleaseAsync(manual, () => !active);
             result = count > 0
                 ? $"Sent {(pause ? "Pause" : "Play")} to {count} {(count == 1 ? "player" : "players")}."
                 : LastError ?? (pause ? "No eligible playing media found."
@@ -110,58 +137,114 @@ internal sealed class MediaPause(IPlaybackSessions broker)
         await Task.Yield();
         while (true)
         {
-            if (releaseRequested)
+            if (releaseRequested && !active)
             {
                 releaseRequested = started = false;
-                await ReleaseAsync(automatic);
+                LastError = null;
+                await ReleaseAsync(automatic, () => !active);
             }
             else if (closing)
             {
-                await ReleaseAsync(manual);
+                await ReleaseAsync(manual, () => true);
+                // Owners still present after all attempts cannot be released safely.
+                foreach (var item in automatic.Values.Concat(manual.Values))
+                    item.Watch.Dispose();
+                automatic.Clear();
+                manual.Clear();
                 return;
             }
-            else if (active && !started)
+            else if (active && CanPause && !started)
             {
                 LastError = null;
                 started = true;
-                await PauseAsync(automatic);
+                await PauseAsync(automatic, needsMarker: true);
             }
             else
                 return;
         }
     }
 
-    /// <summary>Captures identities before issuing Pause and retains successful requests for safe release.</summary>
-    private async Task<int> PauseAsync(Dictionary<nint, OwnedPause> owned)
+    /// <summary>Retry temporary failures, including WinRT timeouts, with bounded backoff.</summary>
+    private async Task<T> RetryAsync<T>(Func<Task<T>> attempt, CancellationToken cancellation)
+    {
+        bool retry = false;
+        try
+        {
+            for (int index = 0; ; index++)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                try { return await attempt(); }
+                catch (Exception problem) when (index < RetryDelays.Length && !cancellation.IsCancellationRequested &&
+                    problem is TimeoutException or OperationCanceledException or CommandDeclined or
+                    System.Runtime.InteropServices.COMException)
+                {
+                    if (!retry)
+                    {
+                        retry = true;
+                        retrying++;
+                    }
+                    await Task.Delay(RetryDelays[index], cancellation);
+                }
+            }
+        }
+        finally
+        {
+            if (retry)
+                retrying--;
+        }
+    }
+
+    /// <summary>Wait without polling until capture confirms live narration again.</summary>
+    private async Task WaitForMarkerAsync(CancellationToken cancellation)
+    {
+        while (!CanPause)
+        {
+            markerReady ??= new(TaskCreationOptions.RunContinuationsAsynchronously);
+            await markerReady.Task.WaitAsync(cancellation);
+        }
+    }
+
+    /// <summary>Let a ready session take the next open slot without waiting on a whole group.</summary>
+    private static Task RunSlotsAsync<T>(IReadOnlyList<T> items, Func<T, Task> visit)
+    {
+        int next = 0;
+        async Task RunSlot()
+        {
+            // Continuations share the UI context and claim each item before yielding.
+            while (next < items.Count)
+                await visit(items[next++]);
+        }
+        return Task.WhenAll(Enumerable.Range(0, Math.Min(items.Count, ParallelPlayers)).Select(_ => RunSlot()));
+    }
+
+    /// <summary>Capture identities before Pause and retain acknowledgments for safe release.</summary>
+    private async Task<int> PauseAsync(Dictionary<nint, OwnedPause> owned, bool needsMarker = false)
     {
         using var cancellation = new CancellationTokenSource();
         discovery = cancellation;
         int count = 0;
         try
         {
-            var sessions = await broker.ListAsync(cancellation.Token);
+            var sessions = await RetryAsync(() => broker.ListAsync(cancellation.Token), cancellation.Token);
             var seen = new HashSet<nint>();
             var live = sessions.Select(session => session.Id).ToHashSet();
-            foreach (var old in manual.Values.Where(item => !live.Contains(item.Session.Id)).ToArray())
+            foreach (var old in owned.Values.Where(item => !live.Contains(item.Session.Id) || !item.Watch.Current).ToArray())
             {
                 old.Watch.Dispose();
-                manual.Remove(old.Session.Id);
+                owned.Remove(old.Session.Id);
             }
-            foreach (var group in sessions.Where(session => seen.Add(session.Id)).Chunk(ParallelPlayers))
+            var candidates = sessions.Where(session => seen.Add(session.Id) && !owned.ContainsKey(session.Id)).ToArray();
+            await RunSlotsAsync(candidates, async session =>
             {
                 if (cancellation.IsCancellationRequested)
-                    break;
-                var results = await Task.WhenAll(group.Select(session => TryPauseAsync(session, cancellation.Token)));
-                foreach (var item in results)
+                    return;
+                var item = await TryPauseAsync(session, needsMarker, cancellation.Token);
+                if (item is not null)
                 {
-                    if (item is null)
-                        continue;
-                    if (owned.Remove(item.Session.Id, out var old))
-                        old.Watch.Dispose();
                     owned.Add(item.Session.Id, item);
                     count++;
                 }
-            }
+            });
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         catch (Exception problem) { RecordError(problem); }
@@ -169,22 +252,48 @@ internal sealed class MediaPause(IPlaybackSessions broker)
         return count;
     }
 
-    private async Task<OwnedPause?> TryPauseAsync(IPlaybackSession session, CancellationToken cancellation)
+    private async Task<OwnedPause?> TryPauseAsync(IPlaybackSession session, bool needsMarker,
+        CancellationToken cancellation)
     {
         IPauseWatch? watch = null;
         try
         {
-            if (cancellation.IsCancellationRequested)
-                return null;
-            watch = session.Watch();
-            var current = await session.ReadAsync(cancellation);
-            if (cancellation.IsCancellationRequested || !watch.Current || current.Status != Playback.Playing ||
-                !current.CanPause || !current.CanPlay || !current.Item.Identifiable)
-                return null;
-            if (!await session.PauseAsync())
-                return null;
-            var item = new OwnedPause(session, current.Item, watch);
-            watch = null; // The returned record now owns the media-change subscription.
+            MediaItem? requested = null;
+            var item = await RetryAsync<OwnedPause?>(async () =>
+            {
+                Snapshot current;
+                do
+                {
+                    if (needsMarker)
+                        await WaitForMarkerAsync(cancellation);
+                    cancellation.ThrowIfCancellationRequested();
+                    watch ??= session.Watch();
+                    current = await session.ReadAsync(cancellation);
+                    cancellation.ThrowIfCancellationRequested();
+                    if (!watch.Current || !current.Item.Identifiable ||
+                        (requested is { } previous && current.Item != previous))
+                        return null;
+                    // SMTC can report Play as unavailable while already playing.
+                    // Release checks CanPlay once the same owned item is paused.
+                    if (current.Status != Playback.Playing || !current.CanPause)
+                    {
+                        // A timed-out Pause may have run. A paused status alone
+                        // cannot show that this helper owns it.
+                        if (requested is not null && current.Status == Playback.Paused)
+                            LastError = "Couldn’t confirm a media pause.";
+                        return null;
+                    }
+                    if (!needsMarker || CanPause)
+                        break;
+                } while (true);
+
+                requested ??= current.Item;
+                if (!await session.PauseAsync())
+                    throw new CommandDeclined("Pause");
+                return new OwnedPause(session, current.Item, watch);
+            }, cancellation);
+            if (item is not null)
+                watch = null; // Ownership now retains the media-change subscription.
             return item;
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { return null; }
@@ -192,46 +301,57 @@ internal sealed class MediaPause(IPlaybackSessions broker)
         finally { watch?.Dispose(); }
     }
 
-    /// <summary>Rechecks the same live session and item before Play, then drops all released ownership.</summary>
-    private async Task<int> ReleaseAsync(Dictionary<nint, OwnedPause> owned)
+    /// <summary>Recheck ownership before each Play, retaining the record across transient failures.</summary>
+    private async Task<int> ReleaseAsync(Dictionary<nint, OwnedPause> owned, Func<bool> allowed)
     {
         if (owned.Count == 0)
             return 0;
         var items = owned.Values.ToArray();
-        owned.Clear();
         try
         {
-            var live = (await broker.ListAsync(CancellationToken.None)).Select(session => session.Id).ToHashSet();
+            var live = (await RetryAsync(() => broker.ListAsync(CancellationToken.None), CancellationToken.None))
+                .Select(session => session.Id).ToHashSet();
             int count = 0;
-            foreach (var group in items.Where(item => live.Contains(item.Session.Id)).Chunk(ParallelPlayers))
+            await RunSlotsAsync(items, async item =>
             {
-                var results = await Task.WhenAll(group.Select(TryReleaseAsync));
-                count += results.Count(value => value);
-            }
+                try
+                {
+                    bool? played = live.Contains(item.Session.Id)
+                        ? await RetryAsync(() => TryReleaseAsync(item, allowed), CancellationToken.None) : false;
+                    if (played is null)
+                        return; // A new narration deferred the pending release.
+                    owned.Remove(item.Session.Id);
+                    item.Watch.Dispose();
+                    if (played == true)
+                        count++;
+                }
+                catch (Exception problem) { RecordError(problem); }
+            });
             return count;
         }
         catch (Exception problem) { RecordError(problem); return 0; }
-        finally
-        {
-            foreach (var item in items)
-                item.Watch.Dispose();
-        }
     }
 
-    private async Task<bool> TryReleaseAsync(OwnedPause pause)
+    private static async Task<bool?> TryReleaseAsync(OwnedPause pause, Func<bool> allowed)
     {
-        try
-        {
-            if (!pause.Watch.Current)
-                return false;
-            var current = await pause.Session.ReadAsync(CancellationToken.None);
-            return pause.Watch.Current && current.Status == Playback.Paused && current.CanPlay
-                && current.Item == pause.Item && await pause.Session.PlayAsync();
-        }
-        catch (Exception problem) { RecordError(problem); return false; }
+        if (!allowed())
+            return null;
+        if (!pause.Watch.Current)
+            return false;
+        var current = await pause.Session.ReadAsync(CancellationToken.None);
+        if (!allowed())
+            return null;
+        if (!pause.Watch.Current || current.Status != Playback.Paused || !current.CanPlay || current.Item != pause.Item)
+            return false;
+        if (!await pause.Session.PlayAsync())
+            throw new CommandDeclined("Play");
+        return true;
     }
 
-    private void RecordError(Exception problem) =>
-        LastError = problem is OperationCanceledException ? "A Windows media session timed out."
-            : $"Windows media controls error: {problem.Message}";
+    private void RecordError(Exception problem) => LastError = problem switch
+    {
+        OperationCanceledException or TimeoutException => "A Windows media session timed out.",
+        CommandDeclined => problem.Message,
+        _ => $"Windows media controls error: {problem.Message}"
+    };
 }

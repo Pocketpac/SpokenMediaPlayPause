@@ -89,6 +89,8 @@ for source in list(elfs):
 (lib / "gio/modules").mkdir(parents=True)
 for path in sorted((repo / "desktop").glob("*.py")):
     copy(path, "usr/share/spoken-media-pause/" + path.name)
+# Both desktop builds read the same version for the combined GitHub release.
+copy(repo / "desktop/release-version.txt", "usr/share/spoken-media-pause/release-version.txt")
 copy(repo / "packaging/spoken-media-pause.desktop", "spoken-media-pause.desktop")
 # AppImage launchers use .DirIcon or the desktop entry's icon name to find the same PNG.
 copy(repo / "assets/spoken-media-pause.png", "spoken-media-pause.png")

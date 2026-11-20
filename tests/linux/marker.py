@@ -29,23 +29,33 @@ class Marker:
 def check_playback():
     """Only a live marker can change pause intent during a capture session."""
     commands = []
-    monitor = helper.Narration(SimpleNamespace(set_active=commands.append))
+    readiness = []
+
+    def observe(active, fresh):
+        """Record transitions and whether playback can issue another Pause."""
+        readiness.append(fresh)
+        if (commands[-1] if commands else False) != active:
+            commands.append(active)
+
+    monitor = helper.Narration(SimpleNamespace(set_active=observe))
     monitor.update(Marker((helper.GREEN, True)), 0)
     assert not commands
     monitor.update(Marker((helper.GREEN, False)), 0.4)
     monitor.update(Marker((helper.RED, False)), 0.8)
     monitor.update(None, 1.5)
     monitor.update(Marker((helper.RED, False)), 3)
-    assert not monitor.connected and commands == [True]
+    assert not monitor.connected and not readiness[-1] and commands == [True]
     monitor.update(Marker((helper.RED, True)), 3.4)
     monitor.update(Marker(None), 3.8)
-    monitor.update(Marker((helper.RED, False)), 3.9)
-    assert commands == [True]
-    monitor.update(Marker((helper.RED, True)), 4.4)
+    monitor.update(Marker((helper.RED, True)), 3.9)
+    assert not monitor.connected and commands == [True]
+    monitor.update(Marker((helper.RED, False)), 4.4)
+    assert monitor.connected and commands == [True, False]
     monitor.update(None, 8)
     assert commands == [True, False]
-    monitor.update(Marker((helper.GREEN, False)), 8.4)
-    monitor.update(Marker((helper.WHITE, False)), 8.5)
+    monitor.update(Marker((helper.GREEN, True)), 8.4)
+    assert readiness[-1]
+    monitor.update(Marker((helper.WHITE, True)), 8.5)
     monitor.update(None, 12)
     assert commands == [True, False, True, False]
 

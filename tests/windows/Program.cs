@@ -19,9 +19,59 @@ static class Checks
     static async Task RunAsync()
     {
         CheckMarker();
+        CheckMediaKeyPlayback();
         await CheckMultiplePlayersAsync();
         await CheckCancellationAsync();
         await CheckClosingAsync();
+        await CheckRecoveryAsync();
+        await CheckUpdatesAsync();
+    }
+
+    /// <summary>Check that fallback sends paired keys once and holds its state across capture gaps.</summary>
+    static void CheckMediaKeyPlayback()
+    {
+        int sent = 0;
+        bool fail = false;
+        var playback = new MediaKeyPlayback(() =>
+        {
+            sent++;
+            return !fail;
+        });
+        playback.Test(false);
+        Check(sent == 0, "Test Play needs an earlier toggle to pair with.");
+        playback.Test(true);
+        playback.Test(true);
+        playback.SetActive(true, true);
+        playback.SetActive(false, false);
+        Check(sent == 1 && playback.HasPendingToggle, "Automatic narration must leave a manual test pause alone.");
+        playback.Test(false);
+        Check(sent == 2 && !playback.HasPendingToggle, "Test Play must pair with Test Pause once.");
+
+        playback.SetActive(true, false);
+        Check(sent == 2, "Wait for live narration before sending a key.");
+        playback.SetActive(true, true);
+        playback.SetActive(true, false);
+        playback.SetActive(true, true);
+        Check(sent == 3 && playback.AutomaticTogglePending, "Capture gaps must not toggle again.");
+        playback.SetActive(false, true);
+        playback.SetActive(false, true);
+        Check(sent == 4 && !playback.HasPendingToggle, "Send one resume key when narration ends.");
+
+        fail = true;
+        playback.SetActive(true, true);
+        playback.SetActive(true, true);
+        playback.SetActive(false, true);
+        Check(sent == 5 && !playback.HasPendingToggle, "A blocked initial key must not trigger a blind resume.");
+        fail = false;
+        playback.SetActive(true, true);
+        fail = true;
+        playback.SetActive(false, true);
+        playback.SetActive(false, true);
+        Check(sent == 7 && playback.HasPendingToggle, "A blocked resume must not be retried on every poll.");
+        fail = false;
+        playback.Close();
+        playback.Close();
+        Check(sent == 8 && !playback.HasPendingToggle, "Close pairs an outstanding key once.");
     }
 
     static void Check(bool value, string message)
@@ -119,7 +169,11 @@ static class Checks
         narration.Update(idle, 4000);
         narration.Update(null, 4600);
         Check(narration.Active, "One idle sample followed by another gap must not release.");
+        narration.Update(idle, 4780);
+        Check(!narration.Connected && narration.Active && !narration.CanPause,
+            "A recovered frame with a stale clock must hold without starting another Pause.");
         narration.Update(idle with { Heartbeat = true }, 5000);
+        Check(narration.Connected && !narration.Active, "A fresh idle frame can finish the held release.");
         narration.Update(idle with { Heartbeat = false }, 5450);
         Check(narration.Connected && !narration.Active, "A live idle marker must release after recovery.");
         narration.Update(null, 9000);
@@ -187,6 +241,95 @@ static class Checks
             "Shutdown must release a pause acknowledged after closing began.");
     }
 
+    /// <summary>Cover isolated retries, stale marker deferral, ownership retention, and user overrides.</summary>
+    static async Task CheckRecoveryAsync()
+    {
+        var slow = new Player(1) { PauseFailures = 1, PlayRequiresPaused = true };
+        var peers = Enumerable.Range(2, 9).Select(id => new Player(id)).ToArray();
+        var media = new MediaPause(new Broker([slow, .. peers]));
+        media.SetActive(true);
+        await slow.Issued.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        media.SetActive(true, fresh: false);
+        await peers[^1].Issued.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await Task.Delay(350);
+        Check(slow.PauseCalls == 1 && media.Busy, "A deferred retry must wait for a fresh marker.");
+        media.SetActive(true);
+        await media.WhenIdle.WaitAsync(TimeSpan.FromSeconds(3));
+        Check(slow.PauseCalls == 2 && slow.Status == Playback.Paused,
+            "Pause should retry with live narration even when Windows disables Play while playing.");
+        slow.PlayFailures = 1;
+        var changed = peers[0];
+        changed.PlayFailures = 1;
+        media.SetActive(false);
+        await changed.PlayIssued.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        changed.Title = "New track";
+        changed.Invalidate();
+        await media.WhenIdle.WaitAsync(TimeSpan.FromSeconds(3));
+        Check(slow.PlayCalls == 2 && slow.Status == Playback.Playing, "A timeout must preserve ownership for the Play retry.");
+        Check(changed.PlayCalls == 1 && peers.Skip(1).All(player => player.PlayCalls == 1),
+            "A changed item must be skipped while unrelated players resume.");
+        await media.CloseAsync();
+
+        var late = new Player(20) { PauseFailures = 1 };
+        var cancelled = new MediaPause(new Broker([late]));
+        cancelled.SetActive(true);
+        await late.Issued.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        // Pause the event loop long enough for a queued retry to see an expired marker lease.
+        Thread.Sleep(600);
+        await Task.Delay(100);
+        Check(late.PauseCalls == 1 && cancelled.Busy, "A stalled UI must expire the last capture verdict.");
+        cancelled.SetActive(false);
+        await cancelled.WhenIdle.WaitAsync(TimeSpan.FromSeconds(2));
+        Check(late.PauseCalls == 1, "Ending narration must cancel a deferred Pause.");
+        await cancelled.CloseAsync();
+
+        var repeated = new Player(21) { PlayFailures = 3 };
+        var releasing = new MediaPause(new Broker([repeated]));
+        releasing.SetActive(true);
+        await releasing.WhenIdle;
+        releasing.SetActive(false);
+        await releasing.WhenIdle.WaitAsync(TimeSpan.FromSeconds(3));
+        Check(repeated.PlayCalls == 3 && repeated.Status == Playback.Paused && releasing.LastError is not null,
+            "Play retries must be bounded and report exhaustion.");
+        await releasing.CloseAsync();
+        Check(repeated.PlayCalls == 4 && repeated.Status == Playback.Playing, "Closing can release a retained pause.");
+    }
+
+    /// <summary>Check numeric versions, daily caching, platform assets, and a manual offline result.</summary>
+    static async Task CheckUpdatesAsync()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "spoken-update-" + Guid.NewGuid());
+        string cache = Path.Combine(directory, "release-check.json");
+        int requests = 0;
+        var now = new DateTimeOffset(2026, 11, 20, 0, 0, 0, TimeSpan.Zero);
+        string tag = "addon-v0.5.10", asset = "Spoken-Media-Pause-Windows-x64-Beta.exe";
+        bool offline = false;
+        Task<string> Fetch()
+        {
+            requests++;
+            return offline ? Task.FromException<string>(new HttpRequestException("offline")) :
+                Task.FromResult($$"""{"tag_name":"{{tag}}","draft":false,"prerelease":false,"assets":[{"name":"{{asset}}","state":"uploaded"}]}""");
+        }
+
+        try
+        {
+            var updater = new ReleaseUpdates(new Version("0.5.9"), cache, Fetch, () => now);
+            Check(await updater.CheckAsync(false) == new UpdateResult(false, tag), "0.5.10 is newer than 0.5.9.");
+            Check(await updater.CheckAsync(false) == new UpdateResult(false, tag) && requests == 1,
+                "An automatic check should reuse the daily result.");
+            tag = "v0.5.9";
+            Check(await updater.CheckAsync(true) == new UpdateResult(false, null) && requests == 2,
+                "Manual checks bypass the cache.");
+            asset = "Linux.AppImage";
+            now = now.AddDays(1);
+            Check(await updater.CheckAsync(false) == new UpdateResult(false, null) && requests == 3,
+                "A release without a Windows download should not advertise an update.");
+            offline = true;
+            Check(await updater.CheckAsync(true) == new UpdateResult(true, null), "An offline manual check reports failure.");
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
     /// <summary>Emulates the serial callback context of the WinForms message loop.</summary>
     sealed class UiContext : SynchronizationContext, IDisposable
     {
@@ -222,7 +365,11 @@ static class Checks
         public bool StallSnapshot { get; init; }
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Issued { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource PlayIssued { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool>? PauseReply { get; init; }
+        public int PauseFailures { get; set; }
+        public int PlayFailures { get; set; }
+        public bool PlayRequiresPaused { get; init; }
         public int PauseCalls { get; private set; }
         public int PlayCalls { get; private set; }
         private int revision;
@@ -237,20 +384,33 @@ static class Checks
                 Entered.TrySetResult();
                 await Task.Delay(Timeout.Infinite, cancellation);
             }
-            return new(Status, true, true, new("App", Title, "", "", "", 1));
+            // A live Windows media session may enable Play only in its paused state.
+            return new(Status, true, !PlayRequiresPaused || Status == Playback.Paused,
+                new("App", Title, "", "", "", 1));
         }
 
         public Task<bool> PauseAsync()
         {
             PauseCalls++;
-            Status = Playback.Paused;
             Issued.TrySetResult();
+            if (PauseFailures > 0)
+            {
+                PauseFailures--;
+                return Task.FromException<bool>(new TimeoutException());
+            }
+            Status = Playback.Paused;
             return PauseReply?.Task ?? Task.FromResult(true);
         }
 
         public Task<bool> PlayAsync()
         {
             PlayCalls++;
+            PlayIssued.TrySetResult();
+            if (PlayFailures > 0)
+            {
+                PlayFailures--;
+                return Task.FromException<bool>(new TimeoutException());
+            }
             Status = Playback.Playing;
             return Task.FromResult(true);
         }

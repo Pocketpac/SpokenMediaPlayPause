@@ -23,6 +23,7 @@ for namespace in ("Gst", "GstApp", "GstVideo"):
 from gi.repository import Gio, GLib, Gst, GstVideo
 
 from media_players import DBUS, DBUS_PATH, PROPERTIES, MediaPlayers
+from release_updates import DAY, RELEASES, UpdateChecker
 
 try:
     from Xlib import X, Xatom, display, error as xerror
@@ -581,6 +582,9 @@ class Narration:
         self.anchor = None
         self.heartbeat = None
         self.last_heartbeat = float("-inf")
+        self.last_readable = float("-inf")
+        self.latest_mode = None
+        self.awaiting_tick = True
         self.first_idle = None
         self.search_after = 0
         self.holding = False
@@ -597,14 +601,26 @@ class Narration:
                 self.anchor, state = frame.locate()
                 self.search_after = now + 0.55
 
-        if state is not None and state[1] != self.heartbeat:
-            if self.heartbeat is not None:
-                self.last_heartbeat = now
-            self.heartbeat = state[1]
+        if state is None:
+            # A PipeWire poll can be empty between frames. A damaged image or
+            # a longer frame gap requires a new heartbeat before taking action.
+            if frame is not None or now - self.last_readable > 0.55:
+                self.awaiting_tick = True
+        else:
+            if now - self.last_readable > 0.55:
+                self.awaiting_tick = True
+            self.last_readable = now
+            if state[1] != self.heartbeat:
+                if self.heartbeat is not None:
+                    self.last_heartbeat = now
+                    self.awaiting_tick = False
+                self.heartbeat = state[1]
 
-        live = now - self.last_heartbeat <= 2.4
+        expired = now - self.last_heartbeat > 2.4
+        live = not (expired or self.awaiting_tick)
         holding = self.holding
         if live and state is not None:
+            self.latest_mode = state[0]
             self.disabled = state[0] == WHITE
             if state[0] == WHITE:
                 holding = False
@@ -616,17 +632,16 @@ class Narration:
                 if self.first_idle is None:
                     self.first_idle = now
                 holding = now - self.first_idle < 0.45
-        elif frame is not None or not live:
-            # A PipeWire poll can have no new frame. Only an unreadable
-            # image or an expired heartbeat invalidates an idle candidate.
+        elif expired:
+            # A short gap can keep the idle candidate. It still takes a
+            # fresh heartbeat and an idle reading to release after a gap.
             self.first_idle = None
         if live != self.connected:
             self.connected = live
             print("Connected to Spoken." if live else "Waiting for Spoken’s marker.", flush=True)
 
-        if holding != self.holding:
-            self.holding = holding
-            self.player.set_active(holding)
+        self.holding = holding
+        self.player.set_active(holding, live and self.latest_mode == GREEN)
 
         if self.show_status:
             if not live:
@@ -717,19 +732,88 @@ class StatusWindow:
         self.feedback = Gtk.Label(xalign=0, wrap=True)
         self.feedback.set_visible(False)
         content.append(self.feedback)
+        self.recovery = Gtk.Label(xalign=0, wrap=True)
+        self.recovery.set_visible(False)
+        content.append(self.recovery)
         self.share = Gtk.Button(label="Share WoW Window")
         self.share.set_visible(False)
         self.share.connect("clicked", self.share_clicked)
         content.append(self.share)
+        updates = Gtk.Box(spacing=8)
+        self.check_button = Gtk.Button(label="Check for updates")
+        self.check_button.connect("clicked", lambda _button: self.check_updates(True))
+        self.release_link = Gtk.LinkButton.new_with_label(RELEASES, "View release")
+        self.release_link.set_visible(False)
+        updates.append(self.check_button)
+        updates.append(self.release_link)
+        content.append(updates)
+        self.update_message = Gtk.Label(xalign=0, wrap=True)
+        self.update_message.set_visible(False)
+        content.append(self.update_message)
         self.window.set_child(content)
         self.on_close = None
         self.on_test = None
         self.testing = False
         self.holding = False
+        self.media_busy = False
         self.on_share = None
+        self.updates = UpdateChecker()
+        self.update_timer = GLib.timeout_add_seconds(DAY, self.check_updates, False)
+        self.update_idle = GLib.idle_add(self.start_updates)
+        self.disposed = False
         self.window.connect("close-request", self.close_request)
         self.show("Starting…")
         self.window.present()
+
+    def start_updates(self):
+        """Start the first automatic check once the GTK loop is ready."""
+        self.update_idle = None
+        self.check_updates(False)
+        return GLib.SOURCE_REMOVE
+
+    def check_updates(self, manual):
+        """Report update results separately from capture and playback controls."""
+        if self.updates.busy:
+            return GLib.SOURCE_CONTINUE
+        self.check_button.set_sensitive(False)
+        if manual:
+            self.update_message.set_label("Checking GitHub…")
+            self.update_message.set_visible(True)
+
+        def show_result(failed, tag):
+            if self.disposed:
+                return
+            self.check_button.set_sensitive(True)
+            self.release_link.set_visible(tag is not None)
+            if tag:
+                self.release_link.set_uri(RELEASES + tag)
+            message = f"Update available ({tag.removeprefix('addon-')})" if tag else ""
+            if manual:
+                if failed:
+                    message = "Could not check GitHub. " + message if message else "Could not check GitHub."
+                elif not tag:
+                    message = "No update available."
+            self.update_message.set_label(message)
+            self.update_message.set_visible(bool(message))
+
+        self.updates.check(manual, show_result)
+        return GLib.SOURCE_CONTINUE
+
+    def dispose(self):
+        """Stop scheduled checks and ignore an in-flight check after closing."""
+        self.disposed = True
+        GLib.source_remove(self.update_timer)
+        if self.update_idle is not None:
+            GLib.source_remove(self.update_idle)
+        self.window.destroy()
+
+    def show_recovery(self, message, busy):
+        """Show media recovery alongside capture state, keeping test controls safe."""
+        if self.recovery.get_label() != message:
+            self.recovery.set_label(message)
+            self.recovery.set_visible(bool(message))
+        self.media_busy = busy
+        self.update_test_buttons()
 
     def show(self, status, holding=False):
         """Show capture state and reserve playback for automation while narrating."""
@@ -739,7 +823,7 @@ class StatusWindow:
         self.update_test_buttons()
 
     def update_test_buttons(self):
-        enabled = self.on_test is not None and not self.holding and not self.testing
+        enabled = self.on_test is not None and not self.holding and not self.testing and not self.media_busy
         for button in self.test_buttons:
             if button.get_sensitive() != enabled:
                 button.set_sensitive(enabled)
@@ -795,7 +879,7 @@ def main():
         status.show_error(error)
     finally:
         if status is not None:
-            status.window.destroy()
+            status.dispose()
 
 
 def run_capture(args, status):
@@ -808,7 +892,7 @@ def run_capture(args, status):
         raise RuntimeError("Spoken Media Pause is already running.")
 
     portal = ScreenCast(bus)
-    player = MediaPlayers(bus)
+    player = MediaPlayers(bus, status.show_recovery if status is not None else None)
     monitor = Narration(player, status.show if status is not None else None)
     loop = GLib.MainLoop()
     errors = []

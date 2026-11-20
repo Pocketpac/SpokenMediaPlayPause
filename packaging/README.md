@@ -16,7 +16,9 @@ The build uses Jammy's Python, GTK, and system packages and builds GStreamer and
 
 ## Release files
 
-Put the All Players AppImage, the Windows x64 EXE, and all companion addon ZIPs in the same GitHub release. Mark it as Latest and label the Windows download as beta and untested in the release notes until it has been tested on Windows. List direct download links in the release notes so users can choose one desktop helper and the ZIP for their WoW client.
+Put the All Players AppImage, the Windows x64 EXE, and all companion addon ZIPs in the same GitHub release. Mark it as Latest and label the Windows download as Beta. List direct download links so users can choose a desktop helper and the ZIP for their WoW client.
+
+Set [the shared release version](../desktop/release-version.txt) before building both companions. Use a matching GitHub release tag such as `v0.5.3` or `addon-v0.5.3`. The update check uses the combined release version, independent of the WoW addon and Windows beta version numbers. Keep the canonical asset names so both companions can identify their downloads.
 
 Stage the two desktop builds, the project license, and the Windows runtime notices in a clean `dist/release` directory. See the [Windows build instructions](../windows/README.md#build-from-source) for the EXE. The addon packager reads the version from the current WoW TOCs and generates both legacy manifests from the same source.
 

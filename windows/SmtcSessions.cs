@@ -20,7 +20,14 @@ internal sealed class SmtcSessions : IPlaybackSessions
     {
         manager ??= await TimedAsync(Manager.RequestAsync, cancellation);
         cancellation.ThrowIfCancellationRequested();
-        var current = manager.GetSessions();
+        IReadOnlyList<Session> current;
+        try { current = manager.GetSessions(); }
+        catch (COMException)
+        {
+            // Reacquire the manager on retry if its service has restarted.
+            manager = null;
+            throw;
+        }
         var sessions = new List<IPlaybackSession>(current.Count);
         foreach (var session in current)
         {
@@ -36,10 +43,11 @@ internal sealed class SmtcSessions : IPlaybackSessions
     }
 
     /// <summary>Bounds hung requests and allows read-only discovery to be cancelled on a state change.</summary>
-    private static async Task<T> TimedAsync<T>(Func<IAsyncOperation<T>> call, CancellationToken cancellation = default)
+    private static async Task<T> TimedAsync<T>(Func<IAsyncOperation<T>> call,
+        CancellationToken cancellation = default, int milliseconds = 1500)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
-        timeout.CancelAfter(TimeSpan.FromMilliseconds(1500));
+        timeout.CancelAfter(TimeSpan.FromMilliseconds(milliseconds));
         timeout.Token.ThrowIfCancellationRequested();
         return await call().AsTask(timeout.Token).WaitAsync(timeout.Token);
     }
@@ -68,8 +76,9 @@ internal sealed class SmtcSessions : IPlaybackSessions
         }
 
         public IPauseWatch Watch() => new SessionWatch(session);
-        public Task<bool> PauseAsync() => TimedAsync(session.TryPauseAsync);
-        public Task<bool> PlayAsync() => TimedAsync(session.TryPlayAsync);
+        // An acknowledged command can be owned even when the player responds slowly.
+        public Task<bool> PauseAsync() => TimedAsync(session.TryPauseAsync, milliseconds: 3000);
+        public Task<bool> PlayAsync() => TimedAsync(session.TryPlayAsync, milliseconds: 3000);
     }
 
     /// <summary>Invalidates ownership if the item changes or the player leaves a pause on its own.</summary>

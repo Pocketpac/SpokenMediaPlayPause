@@ -2,7 +2,7 @@
 
 <img src="assets/brass-badge-logo.png" alt="Spoken Media Pause brass badge logo with glowing amber bars" width="112">
 
-Pause your music, video, or audiobook while [Spoken](https://www.curseforge.com/wow/addons/spoken) narrates in World of Warcraft. The desktop helper sends separate Pause and Play commands to compatible players and resumes only the same items it paused.
+Pause your music, video, or audiobook while [Spoken](https://www.curseforge.com/wow/addons/spoken) narrates in World of Warcraft. By default, the desktop helper sends separate Pause and Play commands and resumes only the items it paused.
 
 Get the **companion addon** for your WoW client and the **desktop helper** for your operating system from the [latest release](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest).
 
@@ -32,7 +32,9 @@ On both platforms, use WoW in **Windowed** or **Windowed (Fullscreen)** mode. Ex
 2. Start WoW in **Windowed** or **Windowed (Fullscreen)** mode. Keep the top-left corner of the game visible, with the helper window out of the way. The helper finds WoW and reads up to 200 × 160 pixels from that corner.
 3. [Test playback and automatic pause](#test-playback-and-automatic-pause).
 
-Windows playback uses Windows system media sessions. The player must expose Pause, Play, and item information through that interface.
+The default mode uses Windows system media sessions. It needs a compatible player that exposes playback controls and identifies the current item.
+
+If the default mode has trouble with a player that responds to your keyboard’s media key, turn on **Use keyboard media key (fallback)**. It starts off and remembers your choice between launches. Start your media before testing, and keep the same player selected through narration. Windows chooses which player receives each **Play/Pause** press. [Windows fallback guide](windows/README.md#keyboard-media-key-fallback)
 
 ## Linux setup
 
@@ -82,16 +84,22 @@ If the marker disappears or freezes during a resolution or display mode change, 
 
 ## Test playback and automatic pause
 
-1. **Check your player.** Start a song, video, or audiobook in your player. Click **Test Pause**, then **Test Play** in the helper. Both buttons work with WoW closed. **Test Play** resumes the same item paused by **Test Pause**.
+1. **Check your player.** Start a song, video, or audiobook in your player. Click **Test Pause**, then **Test Play** in the helper. Both buttons work with WoW closed. In the default mode, **Test Play** resumes the same item paused by **Test Pause**. With Windows fallback enabled, each button sends one keyboard-style Play/Pause press.
 2. **Check Spoken.** With your media playing and the helper running, trigger a voiced quest or NPC dialogue in WoW. Your media should pause while Spoken speaks and resume when narration ends.
 3. **Check the toggle.** Click the [in-game badge](#in-game-marker) during narration. The slash should appear and the helper should release its pause. Click again to re-enable auto-pause.
 
 If the test buttons have no effect, confirm your media is playing in a player that exposes your operating system's media controls. Try a regular track or video if a live stream fails. If the buttons work but automatic pause fails, check that both addons are enabled, Spoken is playing audible narration, and the marker is visible and enabled. On native Wayland, also check which window or monitor you shared.
 
+If the status window says **Waiting for WoW’s marker**, the helper holds its last pause decision and waits for a fresh marker. In the default mode, **Media player is slow** means the helper is retrying a request after rechecking the selected item.
+
+## Check for updates
+
+The desktop companions check the public GitHub release in the background at startup and at most once a day. Click **Check for updates** to check immediately. If a newer download is available for your platform, **View release** opens the combined download page.
+
 ## Verification
 
-- **Linux** 0.5.2 companion build passed the Ubuntu 22.04 library check, X11 capture and automatic pause/resume with a simulated WoW window, and both playback buttons with no game window. Earlier builds were tested on XWayland and KDE Wayland window and monitor sharing.
-- **Windows** marker and playback logic checks passed on Linux, where the beta EXE was built.
+- **Linux 0.5.3** passed the Ubuntu 22.04 library check, X11 capture and playback recovery with a simulated WoW window, both playback buttons, and the GitHub update check. Earlier builds were tested on XWayland and KDE Wayland window and monitor sharing.
+- **Windows Beta 8** passed fallback setting persistence, keyboard playback with a native Windows player, and automatic key presses with a simulated WoW window on a Windows Server 2025 x64 runner. [Windows runner results](https://github.com/Pocketpac/SpokenMediaPlayPause/actions/runs/44668661133/job/136064070830)
 - **Addon 0.5.2** was checked with simulated WoW APIs. Both companions passed rendered brass and classic marker checks. Live Classic and legacy gameplay remain untested.
 
 [SHA-256 checksums](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SHA256SUMS-all.txt) · [Linux build instructions](packaging/README.md) · [Windows build instructions](windows/README.md#build-from-source)

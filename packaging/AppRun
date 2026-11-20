@@ -16,4 +16,13 @@ export PIPEWIRE_CONFIG_DIR="${PIPEWIRE_CONFIG_DIR:-$app_data/pipewire}"
 export FONTCONFIG_PATH="${FONTCONFIG_PATH:-$app_data/spoken-media-pause/fontconfig}"
 export FONTCONFIG_FILE="${FONTCONFIG_FILE:-$app_data/spoken-media-pause/fontconfig/fonts.conf}"
 export GSK_RENDERER="${GSK_RENDERER:-cairo}"
+# Use the desktop's certificate store for GitHub HTTPS with the bundled OpenSSL.
+if [ -z "${SSL_CERT_FILE:-}" ]; then
+    for bundle in /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/cert.pem; do
+        if [ -r "$bundle" ]; then
+            export SSL_CERT_FILE="$bundle"
+            break
+        fi
+    done
+fi
 exec "$app_root/usr/bin/python3.10" "$app_data/spoken-media-pause/spoken-media-pause.py" --status-window "$@"
