@@ -6,13 +6,18 @@ if not spoken or not spoken.RegisterCallback or not spoken.GetNowPlaying or not 
     return
 end
 
--- Prefer WorldFrame so the marker survives UIParent fades and hides.
--- Clients without WorldFrame use UIParent as the corner anchor.
-local parent = WorldFrame or UIParent
-local frame = CreateFrame("Button", "SpokenMediaPauseMarker", parent)
-frame:SetPoint("TOPLEFT", parent, "TOPLEFT", 12, -12)
+-- A parentless badge is anchored to the screen so quest-camera addons can
+-- fade, hide, or resize the game UI without changing the marker's pixels.
+local frame = CreateFrame("Button", "SpokenMediaPauseMarker", nil)
+frame:SetPoint("TOPLEFT", nil, "TOPLEFT", 12, -12)
+-- Keep the badge's opacity, scale, and draw order independent on clients
+-- that expose these controls. Legacy clients use the parentless anchor alone.
+if frame.SetIgnoreParentAlpha then frame:SetIgnoreParentAlpha(true) end
+if frame.SetIgnoreParentScale then frame:SetIgnoreParentScale(true) end
 frame:SetFrameStrata("TOOLTIP")
 frame:SetFrameLevel(100)
+if frame.SetFixedFrameStrata then frame:SetFixedFrameStrata(true) end
+if frame.SetFixedFrameLevel then frame:SetFixedFrameLevel(true) end
 frame:EnableMouse(true)
 frame:RegisterForClicks("LeftButtonUp")
 

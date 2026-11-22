@@ -37,18 +37,25 @@ local function checkClient(mode)
     local frame = {
         SetWidth = function(self, width) self.width = width end,
         SetHeight = function(self, height) self.height = height end,
-        SetPoint = function(_, point, parent, relative, x, y)
-            assert(point == "TOPLEFT" and parent == (WorldFrame or UIParent) and relative == point)
+        SetPoint = function(self, point, anchor, relative, x, y)
+            assert(point == "TOPLEFT" and relative == point)
             assert(x == 12 and y == -12)
+            self.anchor = anchor
         end,
-        SetFrameStrata = function() end,
-        SetFrameLevel = function() end,
+        SetFrameStrata = function(self, strata) self.strata = strata end,
+        SetFrameLevel = function(self, level) self.level = level end,
         EnableMouse = function() end,
         RegisterForClicks = function(_, button) assert(button == "LeftButtonUp") end,
         SetScript = function(_, name, callback) scripts[name] = callback end,
         RegisterEvent = function(_, name) assert(name == "ADDON_LOADED"); registered = true end,
         UnregisterEvent = function(_, name) assert(name == "ADDON_LOADED"); registered = false end,
     }
+    if modern then
+        frame.SetIgnoreParentAlpha = function(self, enabled) self.ignoreParentAlpha = enabled end
+        frame.SetIgnoreParentScale = function(self, enabled) self.ignoreParentScale = enabled end
+        frame.SetFixedFrameStrata = function(self, enabled) self.fixedStrata = enabled end
+        frame.SetFixedFrameLevel = function(self, enabled) self.fixedLevel = enabled end
+    end
     function frame:CreateTexture(_, layer)
         local cell = {
             layer = layer,
@@ -83,7 +90,8 @@ local function checkClient(mode)
     end
 
     CreateFrame = function(kind, name, parent)
-        assert(kind == "Button" and name == "SpokenMediaPauseMarker" and parent == (WorldFrame or UIParent))
+        assert(kind == "Button" and name == "SpokenMediaPauseMarker")
+        frame.parent = parent
         return frame
     end
 
@@ -135,6 +143,13 @@ local function checkClient(mode)
     end
 
     assert(loadfile(addonPath))()
+    -- A quest overlay can rearrange or fade either game frame. Keep both
+    -- the badge's layout anchor and its inherited appearance off those frames.
+    assert(frame.parent == nil and frame.anchor == nil)
+    assert(frame.strata == "TOOLTIP" and frame.level == 100)
+    if modern then
+        assert(frame.ignoreParentAlpha and frame.ignoreParentScale and frame.fixedStrata and frame.fixedLevel)
+    end
     checkBrass(0, 0)
     snapshot("brass-idle-dark")
     SpokenMediaPauseDisabled = true

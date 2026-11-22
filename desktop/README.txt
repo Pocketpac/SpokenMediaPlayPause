@@ -2,7 +2,7 @@ Spoken Media Pause Companion for Linux x86-64
 
 Make the AppImage executable and launch it from your desktop. Close the
 older desktop helper before launching the AppImage. This build works with
-the SpokenMediaPause 0.5.2 WoW companion addon and the earlier classic
+the SpokenMediaPause 0.5.3 WoW companion addon and the earlier classic
 marker used by addon 0.3.0.
 
 Start a player with MPRIS desktop media controls, then click Test Pause

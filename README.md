@@ -22,9 +22,9 @@ On both platforms, use WoW in **Windowed** or **Windowed (Fullscreen)** mode. Ex
 
 | WoW client | Companion download |
 | --- | --- |
-| WoW Forever, Classic Era, or Burning Crusade Classic (Anniversary) | [Standard addon 0.5.2](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SpokenMediaPause-0.5.2.zip) |
-| Original WotLK 3.3.5a with the [Spoken WotLK port](https://github.com/PatchFoundry335/spoken-wow) | [WotLK addon 0.5.2](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SpokenMediaPause-0.5.2-WotLK-3.3.5a.zip) (experimental) |
-| Original Vanilla 1.12 with [SoftSpoken](https://github.com/z1xel/SoftSpoken) | [Vanilla addon 0.5.2](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SpokenMediaPause-0.5.2-Vanilla-1.12-SoftSpoken.zip) (experimental) |
+| WoW Forever, Classic Era, or Burning Crusade Classic (Anniversary) | [Standard addon 0.5.3](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SpokenMediaPause-0.5.3.zip) |
+| Original WotLK 3.3.5a with the [Spoken WotLK port](https://github.com/PatchFoundry335/spoken-wow) | [WotLK addon 0.5.3](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SpokenMediaPause-0.5.3-WotLK-3.3.5a.zip) (experimental) |
+| Original Vanilla 1.12 with [SoftSpoken](https://github.com/z1xel/SoftSpoken) | [Vanilla addon 0.5.3](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SpokenMediaPause-0.5.3-Vanilla-1.12-SoftSpoken.zip) (experimental) |
 
 ## Windows setup
 
@@ -100,7 +100,7 @@ The desktop companions check the public GitHub release in the background at star
 
 - **Linux 0.5.4** uses the same Ubuntu 22.04 runtime and capture code as 0.5.3. Version 0.5.3 passed X11 capture and playback recovery with a simulated WoW window, both playback buttons, and the GitHub update check. Earlier builds were tested on XWayland and KDE Wayland window and monitor sharing.
 - **Windows** was tested on a Windows 10 22H2 x64 VM. **Test Pause** and **Test Play** worked in Firefox and Chrome with both control modes. The compact window was tested in Chrome, including both playback modes and **Check for updates**. Beta 8 also passed fallback setting persistence and automatic key presses with a simulated WoW window on a Windows Server 2025 x64 runner. [Windows runner results](https://github.com/Pocketpac/SpokenMediaPlayPause/actions/runs/44668661133/job/136064070830)
-- **Addon 0.5.2** was checked with simulated WoW APIs. Both companions passed rendered brass and classic marker checks. Live Classic and legacy gameplay remain untested.
+- **Addon 0.5.3** kept the badge readable through quest dialogue in WoW Forever on KDE Wayland. Firefox paused and resumed with XWayland capture. Both companion decoders passed the rendered brass and classic marker checks. Live Classic and legacy gameplay remain untested.
 
 [SHA-256 checksums](https://github.com/Pocketpac/SpokenMediaPlayPause/releases/latest/download/SHA256SUMS-all.txt) · [Linux build instructions](packaging/README.md) · [Windows build instructions](windows/README.md#build-from-source)
 
